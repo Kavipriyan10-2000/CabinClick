@@ -1,0 +1,31 @@
+.env
+.env.local
+.env.*.local
+secrets/
+__pycache__/
+.pytest_cache/
+.venv/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Python tooling
+.coverage
+.mypy_cache/
+.ruff_cache/
+.nox/
+.tox/
+htmlcov/
+build/
+dist/
+site/
+
+# Local environments
+venv/
+env/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
