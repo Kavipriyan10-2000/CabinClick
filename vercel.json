@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd b_msn0Yl57l55-1772294636255 && pnpm install --no-frozen-lockfile && pnpm build",
+  "outputDirectory": "b_msn0Yl57l55-1772294636255/.next",
+  "installCommand": "cd b_msn0Yl57l55-1772294636255 && pnpm install --no-frozen-lockfile",
+  "devCommand": "cd b_msn0Yl57l55-1772294636255 && pnpm dev --port $PORT"
+}
