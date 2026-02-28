@@ -61,7 +61,7 @@ export function C4SOSAlert({ request, crew, onAcknowledge, onDismiss }: C4SOSAle
           <p className="text-xs text-red-200 font-semibold mb-1">
             {flag} Original message ({request.originalLanguage})
           </p>
-          <p className="text-white text-sm italic">"{request.originalText}"</p>
+          <p className="text-white text-sm italic">&quot;{request.originalText}&quot;</p>
         </div>
       )}
       <div className="bg-white/20 rounded-2xl px-6 py-3 max-w-md w-full mb-8 text-center">

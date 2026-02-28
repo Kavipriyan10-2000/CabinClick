@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Ignore archived generated app snapshot not used in root build.
+    "b_msn0Yl57l55-1772294636255/**",
   ]),
 ]);
 
