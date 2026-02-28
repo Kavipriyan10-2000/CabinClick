@@ -12,7 +12,7 @@ Interpret the passenger's spoken request and respond with a single JSON object.
 
 Requirements:
 - Keep `passenger_message` in the same language used by the passenger.
-- Use `source_language` as an ISO-style language code when you can infer it.
+- Use `source_language` as either `en` or `de`.
 - Use a short English slug for `category` such as refreshment, comfort, medical, seat_help, or baggage.
 - Create `action_items` as an array of objects with:
   - `item`: passenger-facing item name in the passenger's language
@@ -25,12 +25,12 @@ Requirements:
 Return only JSON with this shape:
 {
   "category": "refreshment",
-  "source_language": "es",
-  "passenger_message": "Dos aguas, por favor.",
+  "source_language": "de",
+  "passenger_message": "Zwei Wasser, bitte.",
   "crew_summary": "Seat requested 2 waters.",
   "action_items": [
     {
-      "item": "aguas",
+      "item": "Wasser",
       "quantity": 2,
       "notes": null,
       "normalized_item": "water"
@@ -140,3 +140,33 @@ def localize_instruction_for_crew(
         parsed["instruction_text"],
         parsed.get("language", normalized_target),
     )
+
+
+def localize_text_for_crew(
+    *,
+    text: str,
+    target_language: str | None,
+    source_language: str | None = "en",
+) -> tuple[str, str | None]:
+    if not target_language:
+        return text, source_language
+
+    normalized_target = target_language.strip().lower()
+    normalized_source = (source_language or "").strip().lower()
+    if normalized_target == normalized_source:
+        return text, normalized_source or source_language
+
+    response = _get_gemini_model().generate_content(
+        [
+            "Translate the following cabin-service text and return only JSON with keys `text` and `language`.",
+            json.dumps(
+                {
+                    "target_language": normalized_target,
+                    "source_language": normalized_source or source_language,
+                    "text": text,
+                }
+            ),
+        ]
+    )
+    parsed = json.loads(_clean_json_response(response.text))
+    return parsed["text"], parsed.get("language", normalized_target)

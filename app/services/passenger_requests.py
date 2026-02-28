@@ -4,6 +4,7 @@ from app.schemas.request_management import (
     PassengerRequestRecord,
     PassengerRequestSource,
 )
+from app.schemas.language import LanguageCode
 from app.services._flight_context import get_active_flight
 from app.db.supabase import get_supabase_client
 from app.services.instruction_batcher import emit_crew_instruction_if_needed
@@ -32,7 +33,7 @@ def list_passenger_requests(
             source=record["source"],
             status=record["status"],
             request_text=record["request_text"],
-            source_language=record.get("source_language"),
+            source_language=record.get("source_language") or LanguageCode.en,
             translated_text=record.get("translated_text"),
             metadata=record.get("metadata") or {},
             created_at=record["created_at"],
@@ -65,18 +66,22 @@ def create_voice_passenger_request(
     seat_number: str,
     audio_bytes: bytes,
     mime_type: str,
-    source_language_hint: str | None = None,
+    source_language_hint: LanguageCode | str = LanguageCode.en,
 ) -> PassengerRequestRecord:
     voice_result = interpret_passenger_audio(
         audio_bytes=audio_bytes,
         mime_type=mime_type,
-        source_language_hint=source_language_hint,
+        source_language_hint=(
+            source_language_hint.value
+            if isinstance(source_language_hint, LanguageCode)
+            else source_language_hint
+        ),
     )
     payload = PassengerRequestCreate(
         category=voice_result.category,
         request_text=voice_result.passenger_message,
         source=PassengerRequestSource.speech,
-        source_language=voice_result.source_language or source_language_hint,
+        source_language=voice_result.source_language,
         metadata={
             **voice_result.metadata,
             "action_items": [
@@ -143,7 +148,7 @@ def _create_passenger_request_record(
         source=payload.source,
         status=record["status"],
         request_text=payload.request_text,
-        source_language=record.get("source_language"),
+        source_language=record.get("source_language") or LanguageCode.en,
         translated_text=record.get("translated_text"),
         metadata=record.get("metadata") or {},
         created_at=record["created_at"],

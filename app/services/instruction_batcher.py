@@ -19,7 +19,7 @@ def emit_crew_instruction_if_needed() -> Any | None:
         .select("*")
         .eq("flight_id", flight["id"])
         .eq("status", "submitted")
-        .order("created_at", asc=True)
+        .order("created_at")
         .execute()
     )
     items = pending.data or []
@@ -36,13 +36,21 @@ def emit_crew_instruction_if_needed() -> Any | None:
 
     selected = items[:10]
     seat_numbers = sorted({record["seat_number"] for record in selected})
-    instruction_text = "; ".join(_format_request_for_instruction(record) for record in selected)
+    aggregate_summary = _build_aggregate_summary(selected)
+    instruction_text = " | ".join(
+        part
+        for part in [
+            aggregate_summary,
+            "; ".join(_format_request_for_instruction(record) for record in selected),
+        ]
+        if part
+    )
     instruction_record = (
         supabase.table("crew_instructions")
         .insert(
             {
                 "flight_id": flight["id"],
-                "title": f"Serve {len(selected)} request(s)",
+                "title": _build_instruction_title(selected, aggregate_summary),
                 "instruction_text": instruction_text,
                 "seat_numbers": seat_numbers,
             }
@@ -67,3 +75,37 @@ def emit_crew_instruction_if_needed() -> Any | None:
 def _format_request_for_instruction(record: dict[str, Any]) -> str:
     summary = record.get("translated_text") or record["request_text"]
     return f"Seat {record['seat_number']}: {summary}"
+
+
+def _build_instruction_title(
+    records: list[dict[str, Any]],
+    aggregate_summary: str,
+) -> str:
+    if aggregate_summary:
+        return f"Serve {len(records)} request(s) - {aggregate_summary}"
+    return f"Serve {len(records)} request(s)"
+
+
+def _build_aggregate_summary(records: list[dict[str, Any]]) -> str:
+    item_totals: dict[str, int] = {}
+    fallback_requests = 0
+
+    for record in records:
+        action_items = ((record.get("metadata") or {}).get("action_items")) or []
+        if not action_items:
+            fallback_requests += 1
+            continue
+
+        for action_item in action_items:
+            label = (
+                action_item.get("normalized_item")
+                or action_item.get("item")
+                or "item"
+            )
+            quantity = action_item.get("quantity") or 1
+            item_totals[label] = item_totals.get(label, 0) + int(quantity)
+
+    parts = [f"{quantity} {label}" for label, quantity in sorted(item_totals.items())]
+    if fallback_requests:
+        parts.append(f"{fallback_requests} uncategorized request(s)")
+    return f"Totals: {', '.join(parts)}" if parts else ""

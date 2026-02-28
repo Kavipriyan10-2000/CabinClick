@@ -9,6 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.so
+*.json
 
 # Python tooling
 .coverage
