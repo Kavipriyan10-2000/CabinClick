@@ -16,6 +16,7 @@ import {
   ApiError,
   type PassengerRequestRecord,
   createPassengerRequest,
+  createVoicePassengerRequest,
   createSeatAccess,
   ensureFlightRegistration,
   listPassengerRequests,
@@ -180,12 +181,14 @@ function CabinClickFlow() {
       source,
       metadata,
       nextScreen = "request-tracking",
+      audioBlob,
     }: {
       category: string
       requestText: string
-      source: "typed" | "quick_action"
+      source: "typed" | "quick_action" | "speech"
       metadata?: Record<string, unknown>
       nextScreen?: Screen
+      audioBlob?: Blob
     }) => {
       setIsSubmittingRequest(true)
       setFlowError(null)
@@ -195,13 +198,24 @@ function CabinClickFlow() {
           await initializePassengerSession()
         }
 
-        const request = await createPassengerRequest(seatInfo.seat, {
-          category,
-          request_text: requestText,
-          source,
-          source_language: toBackendLanguage(locale),
-          metadata: metadata || {},
-        })
+        let request: PassengerRequestRecord
+        if (source === "speech") {
+          if (!audioBlob) {
+            throw new Error("Voice recording is missing.")
+          }
+          request = await createVoicePassengerRequest(seatInfo.seat, {
+            audio: audioBlob,
+            source_language: toBackendLanguage(locale),
+          })
+        } else {
+          request = await createPassengerRequest(seatInfo.seat, {
+            category,
+            request_text: requestText,
+            source,
+            source_language: toBackendLanguage(locale),
+            metadata: metadata || {},
+          })
+        }
 
         setActiveRequest(request)
         setHistory([])
@@ -304,6 +318,14 @@ function CabinClickFlow() {
               category: "custom",
               requestText,
               source: "typed",
+            })
+          }
+          onVoiceConfirm={(audioBlob) =>
+            submitRequest({
+              category: "custom",
+              requestText: "",
+              source: "speech",
+              audioBlob,
             })
           }
         />

@@ -293,11 +293,14 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     )
   }
 
+  const isFormDataPayload =
+    typeof FormData !== "undefined" && init?.body instanceof FormData
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormDataPayload ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers || {}),
     },
   })
@@ -470,6 +473,31 @@ export async function createPassengerRequest(
   return apiFetch<PassengerRequestRecord>(`/seats/${seatNumber}/requests`, {
     method: "POST",
     body: JSON.stringify(payload),
+  })
+}
+
+export async function createVoicePassengerRequest(
+  seatNumber: string,
+  payload: {
+    audio: Blob
+    source_language: BackendLanguage
+  },
+) {
+  if (USE_MOCK_BACKEND) {
+    throw new ApiError(
+      "Voice requests require a live backend. Set NEXT_PUBLIC_API_BASE_URL.",
+      501,
+    )
+  }
+
+  const fileExtension = payload.audio.type.includes("mp4") ? "m4a" : "webm"
+  const formData = new FormData()
+  formData.append("audio", payload.audio, `request.${fileExtension}`)
+  formData.append("source_language", payload.source_language)
+
+  return apiFetch<PassengerRequestRecord>(`/seats/${seatNumber}/voice-requests`, {
+    method: "POST",
+    body: formData,
   })
 }
 
