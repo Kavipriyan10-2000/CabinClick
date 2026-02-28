@@ -1,0 +1,18 @@
+{
+    "sourceFile": ".gitignore",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1772298009208,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1772298009208,
+            "name": "Commit-0",
+            "content": ".env\n.env.local\n.env.*.local\nsecrets/\n__pycache__/\n.pytest_cache/\n.venv/\n*.py[cod]\n*.pyo\n*.pyd\n*.so\n*.json\n\n# Python tooling\n.coverage\n.mypy_cache/\n.ruff_cache/\n.nox/\n.tox/\nhtmlcov/\nbuild/\ndist/\nsite/\n\n# Local environments\nvenv/\nenv/\n\n# IDE and OS files\n.idea/\n.vscode/\n.DS_Store\n"
+        }
+    ]
+}

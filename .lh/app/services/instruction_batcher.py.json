@@ -1,0 +1,18 @@
+{
+    "sourceFile": "app/services/instruction_batcher.py",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1772297773800,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1772297773800,
+            "name": "Commit-0",
+            "content": "from datetime import datetime, timezone, timedelta\nfrom typing import Any\n\nfrom app.db.supabase import get_supabase_client\nfrom app.services._flight_context import get_active_flight\n\n\ndef _parse_timestamp(value: str) -> datetime:\n    if value.endswith(\"Z\"):\n        value = value[:-1] + \"+00:00\"\n    return datetime.fromisoformat(value)\n\n\ndef emit_crew_instruction_if_needed() -> Any | None:\n    flight = get_active_flight()\n    supabase = get_supabase_client()\n    pending = (\n        supabase.table(\"passenger_requests\")\n        .select(\"*\")\n        .eq(\"flight_id\", flight[\"id\"])\n        .eq(\"status\", \"submitted\")\n        .order(\"created_at\")\n        .execute()\n    )\n    items = pending.data or []\n\n    if not items:\n        return None\n\n    oldest = _parse_timestamp(items[0][\"created_at\"])\n    now = datetime.now(timezone.utc)\n    enough_items = len(items) >= 10\n    exceeded_timer = (now - oldest) >= timedelta(minutes=5)\n    if not (enough_items or exceeded_timer):\n        return None\n\n    selected = items[:10]\n    seat_numbers = sorted({record[\"seat_number\"] for record in selected})\n    instruction_text = \"; \".join(_format_request_for_instruction(record) for record in selected)\n    instruction_record = (\n        supabase.table(\"crew_instructions\")\n        .insert(\n            {\n                \"flight_id\": flight[\"id\"],\n                \"title\": f\"Serve {len(selected)} request(s)\",\n                \"instruction_text\": instruction_text,\n                \"seat_numbers\": seat_numbers,\n            }\n        )\n        .execute()\n    )\n    instruction = instruction_record.data[0]\n\n    assignments = [\n        {\"instruction_id\": instruction[\"id\"], \"request_id\": record[\"id\"]}\n        for record in selected\n    ]\n    if assignments:\n        supabase.table(\"crew_instruction_requests\").insert(assignments).execute()\n        supabase.table(\"passenger_requests\").update({\"status\": \"being_served\"}).in_(\n            \"id\", [record[\"id\"] for record in selected]\n        ).execute()\n\n    return instruction\n\n\ndef _format_request_for_instruction(record: dict[str, Any]) -> str:\n    summary = record.get(\"translated_text\") or record[\"request_text\"]\n    return f\"Seat {record['seat_number']}: {summary}\"\n"
+        }
+    ]
+}
