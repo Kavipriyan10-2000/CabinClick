@@ -10,9 +10,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        description=(
-            "Starter backend for passenger speech intake and crew device broadcasts."
-        ),
+        description="Starter backend for flight, passenger, crew, and management flows.",
     )
 
     if settings.cors_origins:
