@@ -261,6 +261,17 @@ function setMockSeatRequests(
   persistMockState()
 }
 
+function resetMockOperationalState() {
+  mockState.crewMembers = []
+  mockState.requestsBySeat = new Map()
+  mockState.requestCounter = 0
+  mockState.accessCounter = 0
+}
+
+function createMockFlightId() {
+  return `flight-demo-${Date.now()}`
+}
+
 function getAllMockRequests() {
   hydrateMockState()
   const allRequests: PassengerRequestRecord[] = []
@@ -335,6 +346,9 @@ export async function getCrewMembers() {
 
 export async function registerFlight(payload: FlightRegistrationRequest) {
   if (USE_MOCK_BACKEND) {
+    hydrateMockState()
+    resetMockOperationalState()
+    mockState.flightId = createMockFlightId()
     setMockFlight(payload)
     return {
       flight_id: mockState.flightId,
@@ -344,7 +358,7 @@ export async function registerFlight(payload: FlightRegistrationRequest) {
       departure_date: payload.departure_date,
       status: "active",
       created_at: nowIso(),
-      message: "Demo flight registered.",
+      message: "Demo flight registered. Previous demo events cleared.",
     } satisfies FlightRegistrationResponse
   }
 
