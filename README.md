@@ -166,7 +166,7 @@ CORS_ORIGINS=http://localhost:3000
 
 # AI — voice requests
 GEMINI_API_KEY=your-gemini-key
-GEMINI_MODEL=gemini-pro
+GEMINI_MODEL=gemini-2.5-flash
 DEFAULT_LANGUAGE=en
 ```
 

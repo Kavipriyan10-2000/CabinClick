@@ -21,7 +21,7 @@ class Settings:
         self.supabase_anon_key = os.getenv("SUPABASE_ANON_KEY", "")
         self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
     @staticmethod
     def _parse_csv_env(name: str) -> list[str]:
