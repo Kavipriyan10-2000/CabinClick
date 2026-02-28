@@ -41,6 +41,7 @@ class PassengerSeatAccessResponse(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
+    flight_number: str
     seat_number: str
     cabin_section: str | None = Field(
         default=None,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.schemas.crew_operations import (
     CrewAccessRequest,
@@ -38,5 +38,11 @@ def get_crew_members() -> CrewMemberListResponse:
     "/instructions",
     response_model=CrewInstructionListResponse,
 )
-def get_instructions() -> CrewInstructionListResponse:
-    return list_crew_instructions()
+def get_instructions(
+    crew_member_code: str | None = Query(default=None),
+    preferred_language: str | None = Query(default=None),
+) -> CrewInstructionListResponse:
+    return list_crew_instructions(
+        crew_member_code=crew_member_code,
+        preferred_language=preferred_language,
+    )

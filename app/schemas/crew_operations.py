@@ -30,9 +30,12 @@ class CrewMemberSummary(BaseModel):
     role: CrewMemberRole
     device_id: str | None = None
     assigned_zone: str | None = None
+    preferred_language: str | None = None
 
 
 class CrewMemberListResponse(BaseModel):
+    flight_id: UUID
+    flight_number: str
     members: list[CrewMemberSummary] = Field(default_factory=list)
     message: str
 
@@ -42,13 +45,20 @@ class CrewAccessStatus(str, Enum):
 
 
 class CrewAccessRequest(BaseModel):
-    crew_member_id: str = Field(..., min_length=1)
+    crew_member_code: str = Field(..., min_length=1)
     device_id: str = Field(..., min_length=1)
+    full_name: str | None = None
+    role: CrewMemberRole = CrewMemberRole.attendant
+    assigned_zone: str | None = None
+    preferred_language: str | None = None
 
 
 class CrewAccessResponse(BaseModel):
     access_id: UUID
-    crew_member_id: str
+    flight_id: UUID
+    flight_number: str
+    crew_member_id: UUID
+    crew_member_code: str
     device_id: str
     status: CrewAccessStatus = CrewAccessStatus.active
     created_at: datetime = Field(
@@ -59,8 +69,10 @@ class CrewAccessResponse(BaseModel):
 
 class CrewInstructionRecord(BaseModel):
     instruction_id: UUID
+    flight_id: UUID
     title: str
     instruction_text: str
+    language: str | None = None
     seat_numbers: list[str] = Field(default_factory=list)
     priority: CrewInstructionPriority = CrewInstructionPriority.medium
     status: CrewInstructionStatus = CrewInstructionStatus.open
@@ -73,5 +85,7 @@ class CrewInstructionRecord(BaseModel):
 
 
 class CrewInstructionListResponse(BaseModel):
+    flight_id: UUID
+    flight_number: str
     items: list[CrewInstructionRecord] = Field(default_factory=list)
     message: str
