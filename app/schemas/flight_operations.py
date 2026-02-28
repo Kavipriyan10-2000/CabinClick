@@ -27,3 +27,15 @@ class FlightRegistrationResponse(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
     )
     message: str
+
+
+class LufthansaFlightTimingResponse(BaseModel):
+    flight_number: str
+    origin: str
+    destination: str
+    scheduled_time: datetime
+    estimated_time: datetime
+    actual_time: datetime | None = None
+    status: str
+    source: str = "lufthansa_mock"
+    message: str

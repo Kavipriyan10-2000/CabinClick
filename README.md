@@ -8,6 +8,10 @@ This repository now includes a FastAPI backend for an airline crew-assistance wo
   - Simple health check for local development and deployment probes.
 - `POST /api/v1/flights/register`
   - Registers the active flight for the current app session.
+- `GET /api/v1/flights/lufthansa/takeoff-time`
+  - Returns a mocked Lufthansa takeoff time payload for frontend testing.
+- `GET /api/v1/flights/lufthansa/landing-time`
+  - Returns a mocked Lufthansa landing time payload for frontend testing.
 - `POST /api/v1/seats/{seat_number}/access`
   - Passenger QR-entry route that stores seat access for the active flight.
 - `GET /api/v1/seats/{seat_number}/requests`
@@ -20,10 +24,14 @@ This repository now includes a FastAPI backend for an airline crew-assistance wo
   - Registers crew iPad access for the active flight.
 - `GET /api/v1/crew/members`
   - Returns the crew roster for the active flight.
+- `GET /api/v1/crew/working-members`
+  - Returns crew members currently signed in on active crew devices.
 - `GET /api/v1/crew/instructions`
   - Returns the instruction feed for the active flight.
 - `GET /api/v1/crew/request-queue`
   - Returns submitted passenger requests waiting in the crew queue.
+- `GET /api/v1/crew/lufthansa/crew-list`
+  - Returns a mocked Lufthansa crew list plus the two predefined device seat assignments.
 - `GET /api/v1/management/requests/summary`
   - Returns a management summary derived from Supabase views.
 
