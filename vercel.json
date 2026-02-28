@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd b_msn0Yl57l55-1772294636255 && npm install --legacy-peer-deps && npm run build",
+  "outputDirectory": "b_msn0Yl57l55-1772294636255/.next",
+  "installCommand": "cd b_msn0Yl57l55-1772294636255 && npm install --legacy-peer-deps",
+  "devCommand": "cd b_msn0Yl57l55-1772294636255 && npm run dev -- --port $PORT"
+}
