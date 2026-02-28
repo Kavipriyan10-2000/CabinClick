@@ -29,10 +29,12 @@ import {
 } from "@/lib/crew-types"
 import {
   ApiError,
+  MOCK_BACKEND_STORAGE_KEY,
   createCrewAccess,
   ensureFlightRegistration,
   getCrewMembers,
   getCrewRequestQueue,
+  isUsingMockBackend,
   toBackendLanguage,
   type CrewMemberSummary,
   type CrewQueueRequestRecord,
@@ -256,6 +258,23 @@ export function CrewApp() {
 
     return () => window.clearInterval(intervalId)
   }, [activated, crewMemberCode, loadCrewData])
+
+  useEffect(() => {
+    if (!activated || !isUsingMockBackend()) {
+      return
+    }
+
+    const handleStorageUpdate = (event: StorageEvent) => {
+      if (event.key !== MOCK_BACKEND_STORAGE_KEY) {
+        return
+      }
+
+      void loadCrewData()
+    }
+
+    window.addEventListener("storage", handleStorageUpdate)
+    return () => window.removeEventListener("storage", handleStorageUpdate)
+  }, [activated, loadCrewData])
 
   useEffect(() => {
     const activeSosRequest =

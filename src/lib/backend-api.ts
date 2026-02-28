@@ -110,12 +110,22 @@ export class ApiError extends Error {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "") || ""
 const USE_MOCK_BACKEND = API_BASE_URL.length === 0
+export const MOCK_BACKEND_STORAGE_KEY = "cabinclick-demo-backend-v1"
 
 type MockState = {
   flight: FlightRegistrationRequest
   flightId: string
   crewMembers: CrewMemberSummary[]
   requestsBySeat: Map<string, PassengerRequestRecord[]>
+  requestCounter: number
+  accessCounter: number
+}
+
+type PersistedMockState = {
+  flight: FlightRegistrationRequest
+  flightId: string
+  crewMembers: CrewMemberSummary[]
+  requestsBySeat: Record<string, PassengerRequestRecord[]>
   requestCounter: number
   accessCounter: number
 }
@@ -134,19 +144,112 @@ const mockState: MockState = {
   accessCounter: 0,
 }
 
+function getMockStorage(): Storage | null {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+function snapshotMockState(): PersistedMockState {
+  return {
+    flight: mockState.flight,
+    flightId: mockState.flightId,
+    crewMembers: mockState.crewMembers,
+    requestsBySeat: Object.fromEntries(mockState.requestsBySeat),
+    requestCounter: mockState.requestCounter,
+    accessCounter: mockState.accessCounter,
+  }
+}
+
+function hydrateMockState() {
+  if (!USE_MOCK_BACKEND) {
+    return
+  }
+
+  const storage = getMockStorage()
+  if (!storage) {
+    return
+  }
+
+  const serialized = storage.getItem(MOCK_BACKEND_STORAGE_KEY)
+  if (!serialized) {
+    return
+  }
+
+  try {
+    const parsed = JSON.parse(serialized) as Partial<PersistedMockState>
+    if (!parsed || typeof parsed !== "object") {
+      return
+    }
+
+    if (parsed.flight) {
+      mockState.flight = parsed.flight
+    }
+
+    if (typeof parsed.flightId === "string" && parsed.flightId.length > 0) {
+      mockState.flightId = parsed.flightId
+    }
+
+    if (Array.isArray(parsed.crewMembers)) {
+      mockState.crewMembers = parsed.crewMembers
+    }
+
+    if (parsed.requestsBySeat && typeof parsed.requestsBySeat === "object") {
+      mockState.requestsBySeat = new Map(
+        Object.entries(parsed.requestsBySeat).map(([seatNumber, requests]) => [
+          seatNumber,
+          Array.isArray(requests) ? requests : [],
+        ]),
+      )
+    }
+
+    if (typeof parsed.requestCounter === "number") {
+      mockState.requestCounter = parsed.requestCounter
+    }
+
+    if (typeof parsed.accessCounter === "number") {
+      mockState.accessCounter = parsed.accessCounter
+    }
+  } catch {
+    // Ignore malformed local storage payloads.
+  }
+}
+
+function persistMockState() {
+  if (!USE_MOCK_BACKEND) {
+    return
+  }
+
+  const storage = getMockStorage()
+  if (!storage) {
+    return
+  }
+
+  storage.setItem(MOCK_BACKEND_STORAGE_KEY, JSON.stringify(snapshotMockState()))
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
 
 function getMockFlight() {
+  hydrateMockState()
   return mockState.flight
 }
 
 function setMockFlight(payload: FlightRegistrationRequest) {
   mockState.flight = payload
+  persistMockState()
 }
 
 function getMockSeatRequests(seatNumber: string) {
+  hydrateMockState()
   return mockState.requestsBySeat.get(seatNumber) || []
 }
 
@@ -155,9 +258,11 @@ function setMockSeatRequests(
   requests: PassengerRequestRecord[],
 ) {
   mockState.requestsBySeat.set(seatNumber, requests)
+  persistMockState()
 }
 
 function getAllMockRequests() {
+  hydrateMockState()
   const allRequests: PassengerRequestRecord[] = []
   for (const requests of mockState.requestsBySeat.values()) {
     allRequests.push(...requests)
@@ -208,6 +313,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function toBackendLanguage(locale: string): BackendLanguage {
   return locale === "de" ? "de" : "en"
+}
+
+export function isUsingMockBackend() {
+  return USE_MOCK_BACKEND
 }
 
 export async function getCrewMembers() {
@@ -276,8 +385,10 @@ export async function createSeatAccess(
   },
 ) {
   if (USE_MOCK_BACKEND) {
+    hydrateMockState()
     const flight = getMockFlight()
     mockState.accessCounter += 1
+    persistMockState()
     return {
       access_id: `access-${mockState.accessCounter}`,
       status: "active",
@@ -320,6 +431,7 @@ export async function createPassengerRequest(
   },
 ) {
   if (USE_MOCK_BACKEND) {
+    hydrateMockState()
     mockState.requestCounter += 1
     const createdAt = nowIso()
     const request: PassengerRequestRecord = {
@@ -356,6 +468,7 @@ export async function createCrewAccess(payload: {
   preferred_language: BackendLanguage
 }) {
   if (USE_MOCK_BACKEND) {
+    hydrateMockState()
     const existingMemberIndex = mockState.crewMembers.findIndex(
       (member) => member.crew_member_id === `crew-${payload.crew_member_code}`,
     )
@@ -374,6 +487,7 @@ export async function createCrewAccess(payload: {
     } else {
       mockState.crewMembers.push(crewMember)
     }
+    persistMockState()
 
     return {
       access_id: `crew-access-${payload.crew_member_code}`,

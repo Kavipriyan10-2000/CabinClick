@@ -97,6 +97,30 @@ def test_create_passenger_seat_access(monkeypatch) -> None:
     assert body["seat_number"] == "14C"
 
 
+def test_create_passenger_seat_access_invalid_seat_returns_422(monkeypatch) -> None:
+    def fake_grant_seat_access(seat_number, payload):
+        raise ValueError("Unsupported seat number. Expected rows 1-33 and columns A-C.")
+
+    monkeypatch.setattr(
+        "app.api.routes.passenger_access.grant_seat_access",
+        fake_grant_seat_access,
+    )
+
+    response = client.post(
+        "/api/v1/seats/40Z/access",
+        json={
+            "qr_token": "seat-token-40Z",
+            "device_label": "iphone-safari",
+            "preferred_language": "en",
+        },
+    )
+
+    body = response.json()
+
+    assert response.status_code == 422
+    assert body["detail"] == "Unsupported seat number. Expected rows 1-33 and columns A-C."
+
+
 def test_list_passenger_requests(monkeypatch) -> None:
     flight_id = str(uuid4())
 
@@ -176,6 +200,30 @@ def test_create_passenger_request(monkeypatch) -> None:
     assert body["seat_number"] == "14C"
     assert body["category"] == "comfort"
     assert body["status"] == "submitted"
+
+
+def test_create_passenger_request_invalid_seat_returns_422(monkeypatch) -> None:
+    def fake_create_passenger_request(seat_number, payload):
+        raise ValueError("Unsupported seat number. Expected rows 1-33 and columns A-C.")
+
+    monkeypatch.setattr(
+        "app.api.routes.passenger_requests.create_passenger_request",
+        fake_create_passenger_request,
+    )
+
+    response = client.post(
+        "/api/v1/seats/40Z/requests",
+        json={
+            "category": "comfort",
+            "request_text": "Please bring me a blanket.",
+            "source": "typed",
+        },
+    )
+
+    body = response.json()
+
+    assert response.status_code == 422
+    assert body["detail"] == "Unsupported seat number. Expected rows 1-33 and columns A-C."
 
 
 def test_create_voice_passenger_request(monkeypatch) -> None:
