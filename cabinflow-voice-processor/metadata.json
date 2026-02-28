@@ -1,5 +1,0 @@
-{
-  "name": "CabinFlow Voice Processor",
-  "description": "An AI assistant for in-flight cabin service that processes passenger audio recordings, transcribes, translates, and extracts service requests.",
-  "requestFramePermissions": ["microphone"]
-}
