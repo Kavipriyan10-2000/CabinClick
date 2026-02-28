@@ -1,141 +1,275 @@
-# Cabin Crew Dispatch Backend
+# CabinClick
 
-This repository now includes a FastAPI backend for an airline crew-assistance workflow, wired to a Supabase schema for the MVP flows.
+In-flight cabin service platform with a passenger-facing mobile app, an iPad crew dashboard, and a FastAPI backend connected to Supabase.
 
-## Implemented API surface
+---
 
-- `GET /api/v1/health`
-  - Simple health check for local development and deployment probes.
-- `POST /api/v1/flights/register`
-  - Registers the active flight for the current app session.
-- `POST /api/v1/seats/{seat_number}/access`
-  - Passenger QR-entry route that stores seat access for the active flight.
-- `GET /api/v1/seats/{seat_number}/requests`
-  - Returns previous requests made from that seat on the active flight.
-- `POST /api/v1/seats/{seat_number}/requests`
-  - Creates a new passenger request in Supabase.
-- `POST /api/v1/seats/{seat_number}/voice-requests`
-  - Uploads passenger audio, converts it into structured actions plus a passenger-language message, and stores the request.
-- `POST /api/v1/crew/access`
-  - Registers crew iPad access for the active flight.
-- `GET /api/v1/crew/members`
-  - Returns the crew roster for the active flight.
-- `GET /api/v1/crew/instructions`
-  - Returns the instruction feed for the active flight.
-- `GET /api/v1/crew/request-queue`
-  - Returns submitted passenger requests waiting in the crew queue.
-- `GET /api/v1/management/requests/summary`
-  - Returns a management summary derived from Supabase views.
+## Repository layout
 
-## Screen architecture
+```
+CabinClick/
+├── b_msn0Yl57l55-1772294636255/   ← Next.js frontend (passenger + crew)
+│   ├── app/
+│   │   ├── page.tsx                  Passenger app entry
+│   │   └── crew/page.tsx             Crew dashboard entry (/crew)
+│   ├── components/
+│   │   ├── screens/                  Passenger screens
+│   │   └── crew/screens/             Crew screens C1–C7
+│   ├── lib/
+│   │   ├── i18n.ts                   8-language translations
+│   │   ├── language-context.tsx      React locale context
+│   │   ├── service-items.ts          Cabin service catalogue
+│   │   └── crew-types.ts             Crew types + mock data
+│   └── package.json
+├── app/                            ← FastAPI backend
+│   ├── api/routes/                   Route handlers
+│   ├── core/config.py                Env config
+│   ├── db/supabase.py                Supabase client
+│   ├── schemas/                      Pydantic models
+│   └── services/                     Business logic
+├── supabase/migrations/            ← DB schema migrations
+├── tests/                          ← Backend tests
+└── requirements.txt
+```
 
-### Passenger screen
+---
 
-- QR-driven seat access scoped by `seat_number`
-- Request history for the current seat
-- New request submission
-- Voice request submission with AI extraction
+## 1 — Frontend (Next.js)
 
-### Crew screen
+### Prerequisites
 
-- iPad access handshake
-- Crew roster
-- Instruction feed localized to the crew device language
+| Tool | Version |
+|------|---------|
+| Node.js | ≥ 20 |
+| pnpm | ≥ 9 |
 
-### Management screen
+> **Why pnpm?** npm v10.2.4 + Node v20 has a known arborist bug that breaks symlinks in `node_modules/.bin`. Always use pnpm for this project.
 
-- Request summary across the active flight
+### Install pnpm (if needed)
 
-## Project structure
+```bash
+npm install -g pnpm
+```
 
-- `app/main.py`
-  - FastAPI application entry point.
-- `app/api/routes/`
-  - Route handlers for health, flights, passenger access, crew operations, and management.
-- `app/schemas/`
-  - Request and response models shared with the frontend.
-- `app/services/`
-  - Supabase-backed service layer for the MVP routes.
-- `tests/test_api.py`
-  - Route contract tests that patch the service layer.
+### Install dependencies & run dev server
 
-## Run locally
+```bash
+cd b_msn0Yl57l55-1772294636255
+pnpm install
+pnpm dev
+```
+
+App is live at **http://localhost:3000**
+
+### Available routes
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:3000` | Passenger app (mobile, portrait) |
+| `http://localhost:3000/crew` | Crew dashboard (iPad, landscape) |
+
+### Build for production
+
+```bash
+cd b_msn0Yl57l55-1772294636255
+pnpm build
+pnpm start
+```
+
+---
+
+### Passenger app — screen flow
+
+```
+Welcome / Boarding
+  └─ QR scan (camera) or manual seat entry (e.g. 14A, LH441)
+Language selection
+  └─ 8 languages: EN · DE · FR · ES · AR · ZH · JA · TR
+Dashboard
+  └─ Live clock, flight progress bar, service category grid
+Service selection
+  └─ Drinks / Food / Comfort / Hygiene / Practical / Medical
+  └─ Quantity selector for drinks & food (1–5)
+Request tracking
+  └─ Auto-advances: Submitted → Acknowledged → On the Way → Delivered
+SOS flow
+  └─ Hold-to-confirm emergency button (1.5 s)
+Feedback survey
+  └─ Star ratings + comments
+Thank you screen
+```
+
+---
+
+### Crew dashboard — screens (iPad · `/crew`)
+
+| Screen | Key | What it does |
+|--------|-----|--------------|
+| Pre-Flight Setup | C1 | Flight number, route, zone assignments, crew roster, service timeline — "Activate" launches the dashboard |
+| Live Request Queue | C2 | Real-time cards sorted by SOS → Priority → Pending; ACK button per card; START TRIP generates a delivery plan |
+| Trip Plan | C3 | Galley pickup list, delivery stops ordered by row, delivered toggle, mid-trip new-request banner |
+| SOS Alert Overlay | C4 | Full-screen red alert, pulsing seat number, original language quote, crew assignment dropdown, ACKNOWLEDGE |
+| Notification Composer | C5 | 6 presets (trash / meal / drinks / turbulence / landing / custom), target (all / zone / seat), delay timer, auto-translate to 8 languages |
+| Seat Map Overview | C6 | Colour-coded seat grid: grey=empty, white=occupied, amber=pending, blue=serving, green=delivered, red=SOS; side panel shows seat detail |
+| Post-Flight Summary | C7 | KPI row, requests-by-category bar chart, feedback scores, crew activity, SOS incident log, response-time breakdown |
+
+Navigation: left sidebar with badge counter on Requests tab. Crew avatars + live clock in header. SOS button appears in header when an SOS is active.
+
+---
+
+### Tech stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16.1.6 (App Router) |
+| Language | TypeScript / React 19 |
+| Styling | Tailwind CSS v4 + tw-animate-css |
+| Components | shadcn/ui (Radix UI) |
+| Icons | lucide-react |
+| QR decode | jsQR (browser camera API) |
+| Colours | `cabin-navy` #0B1F4D · `cabin-gold` #F5B731 |
+
+---
+
+## 2 — Backend (FastAPI)
+
+### Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Python | ≥ 3.11 |
+| pip | any recent |
+
+### Setup
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+### Environment variables
+
+Create `.env.local` in the project root:
+
+```env
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# App
+APP_NAME=CabinClick
+APP_VERSION=0.1.0
+API_V1_PREFIX=/api/v1
+CORS_ORIGINS=http://localhost:3000
+
+# AI — voice requests
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-pro
+DEFAULT_LANGUAGE=en
+```
+
+### Run the API
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://127.0.0.1:8000`, with Swagger docs at `http://127.0.0.1:8000/docs`.
+- API → **http://127.0.0.1:8000**
+- Swagger docs → **http://127.0.0.1:8000/docs**
 
-## Supabase Wiring
+### API endpoints
 
-The backend now loads Supabase configuration from `.env.local` through [config.py](/Users/akshitbhatia/PycharmProjects/CabinClick/app/core/config.py) and exposes a reusable client in [supabase.py](/Users/akshitbhatia/PycharmProjects/CabinClick/app/db/supabase.py).
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/health` | Health check |
+| POST | `/api/v1/flights/register` | Register active flight |
+| POST | `/api/v1/seats/{seat}/access` | Passenger QR check-in |
+| GET | `/api/v1/seats/{seat}/requests` | Seat request history |
+| POST | `/api/v1/seats/{seat}/requests` | Submit new request |
+| POST | `/api/v1/seats/{seat}/voice-requests` | Voice request (Gemini AI extraction) |
+| POST | `/api/v1/crew/access` | Crew iPad check-in |
+| GET | `/api/v1/crew/members` | Crew roster |
+| GET | `/api/v1/crew/instructions` | Crew instruction feed |
+| GET | `/api/v1/crew/request-queue` | Pending request queue |
+| GET | `/api/v1/management/requests/summary` | Management summary |
 
-Current behavior:
-
-- The backend prefers `SUPABASE_SERVICE_ROLE_KEY` when present.
-- If no service-role key is set, it falls back to `SUPABASE_ANON_KEY`.
-- Your current `.env.local` already contains the project URL, publishable key, and anon key.
-
-For the hackathon MVP, the migration grants table access to `anon`, `authenticated`, and `service_role` so the backend can function even if you only have the anon key. `SUPABASE_SERVICE_ROLE_KEY` is still the safer backend option.
-
-## Supabase Schema
-
-The airline MVP schema now lives in [20260228170000_airline_mvp_schema.sql](/Users/akshitbhatia/PycharmProjects/CabinClick/supabase/migrations/20260228170000_airline_mvp_schema.sql). It creates:
-
-- `flights`
-- `seat_access_sessions`
-- `passenger_requests`
-- `crew_members`
-- `crew_access_sessions`
-- `crew_instructions`
-- `crew_instruction_requests`
-- `management_request_summary` and `management_request_category_summary` views
-
-The old cabin/bootstrap tables are explicitly dropped in that migration because they do not belong to this project anymore.
-
-## Auto-Instructions
-
-Passenger submissions now drive instruction creation automatically:
-
-- On every `POST /api/v1/seats/{seat_number}/requests`, the backend checks pending requests.
-- If there are 10+ pending requests or the oldest pending request has been waiting 5+ minutes, those requests are bundled into one `crew_instructions` row (max 10 per instruction).
-- The linked requests are marked `being_served`, and the crew devices read those rows via `GET /api/v1/crew/instructions`.
-- Voice requests keep the passenger-facing text in the original language, store an English crew summary in `translated_text`, and preserve structured action items in `metadata.action_items`.
-- Crew devices can pass `crew_member_code` or `preferred_language` to `GET /api/v1/crew/instructions` so the response text is localized for that device.
-- Language inputs are restricted to `en` or `de`, and default to `en`.
-
-The same check runs before each `GET /api/v1/crew/instructions`, so the crew device will see a fresh instruction once the criteria are met.
-
-## Testing In Swagger Docs
-
-After starting the server and opening `/docs`, test the MVP flow in this order:
+### MVP test flow (Swagger order)
 
 1. `POST /api/v1/flights/register`
 2. `POST /api/v1/seats/14C/access`
 3. `POST /api/v1/seats/14C/requests`
-4. `GET /api/v1/seats/14C/requests`
+4. `GET  /api/v1/seats/14C/requests`
 5. `POST /api/v1/crew/access`
-6. `GET /api/v1/crew/members`
-7. `GET /api/v1/crew/instructions`
-8. `GET /api/v1/management/requests/summary`
+6. `GET  /api/v1/crew/members`
+7. `GET  /api/v1/crew/instructions`
+8. `GET  /api/v1/management/requests/summary`
 
-## Environment
+### Run backend tests
 
-Copy `.env.example` to `.env.local` or export the variables directly. The FastAPI scaffold currently uses:
+```bash
+pytest tests/ -v
+```
 
-- `APP_NAME`
-- `APP_VERSION`
-- `API_V1_PREFIX`
-- `CORS_ORIGINS`
+### Database migration
 
-The existing Supabase and GCP variables remain documented for the rest of the repository.
+```bash
+# via Supabase CLI
+supabase db push
 
-Additional AI-specific variables used by the voice flow:
+# or run manually in Supabase SQL editor:
+# supabase/migrations/20260228170000_airline_mvp_schema.sql
+```
 
-- `DEFAULT_LANGUAGE`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL`
+Tables: `flights`, `seat_access_sessions`, `passenger_requests`, `crew_members`, `crew_access_sessions`, `crew_instructions`, `crew_instruction_requests`
+Views: `management_request_summary`, `management_request_category_summary`
+
+---
+
+## 3 — Running both services together
+
+Open two terminal tabs from the project root:
+
+**Tab 1 — Backend**
+```bash
+source .venv/bin/activate
+uvicorn app.main:app --reload --port 8000
+```
+
+**Tab 2 — Frontend**
+```bash
+cd b_msn0Yl57l55-1772294636255
+pnpm dev
+```
+
+| Service | URL |
+|---------|-----|
+| Passenger app | http://localhost:3000 |
+| Crew dashboard | http://localhost:3000/crew |
+| API (Swagger) | http://localhost:8000/docs |
+
+---
+
+## 4 — Git branches
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable — frontend + backend merged |
+| `dev` | Active development |
+| `akshit` | Backend feature work |
+| `blair2` | Blair's feature branch |
+
+---
+
+## 5 — Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `npm install` fails with `ERR_INVALID_ARG_TYPE` | Use `pnpm install` instead — npm v10.2.4 + Node v20 has an arborist bug |
+| `next: command not found` | Run `pnpm install` inside `b_msn0Yl57l55-1772294636255/` |
+| `.git/index.lock` exists | `rm .git/index.lock` |
+| Camera not working for QR scan | Allow camera permissions in browser; must be served over `localhost` or HTTPS |
+| Supabase connection errors | Check `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env.local` |
+| Backend 422 Unprocessable Entity | Register the flight first: `POST /api/v1/flights/register` |
+| Port 3000 already in use | `lsof -i :3000` then `kill -9 <PID>`, or run `pnpm dev -- --port 3001` |
