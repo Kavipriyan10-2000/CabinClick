@@ -6,6 +6,7 @@ from app.schemas.crew_operations import (
     CrewInstructionListResponse,
     CrewMemberListResponse,
 )
+from app.schemas.language import LanguageCode
 from app.services.crew_operations import (
     create_crew_access,
     list_crew_instructions,
@@ -40,9 +41,9 @@ def get_crew_members() -> CrewMemberListResponse:
 )
 def get_instructions(
     crew_member_code: str | None = Query(default=None),
-    preferred_language: str | None = Query(default=None),
+    preferred_language: LanguageCode = Query(default=LanguageCode.en),
 ) -> CrewInstructionListResponse:
     return list_crew_instructions(
         crew_member_code=crew_member_code,
-        preferred_language=preferred_language,
+        preferred_language=preferred_language.value,
     )

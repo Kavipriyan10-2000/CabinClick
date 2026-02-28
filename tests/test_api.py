@@ -193,7 +193,7 @@ def test_create_voice_passenger_request(monkeypatch) -> None:
         assert seat_number == "14C"
         assert audio_bytes == b"voice-bytes"
         assert mime_type == "audio/webm"
-        assert source_language_hint == "es"
+        assert source_language_hint == "de"
         return {
             "request_id": str(uuid4()),
             "flight_id": flight_id,
@@ -201,14 +201,14 @@ def test_create_voice_passenger_request(monkeypatch) -> None:
             "category": "refreshment",
             "source": "speech",
             "status": "submitted",
-            "request_text": "Dos aguas, por favor.",
-            "source_language": "es",
+            "request_text": "Zwei Wasser, bitte.",
+            "source_language": "de",
             "translated_text": "Seat requested 2 waters.",
             "metadata": {
-                "passenger_message": "Dos aguas, por favor.",
+                "passenger_message": "Zwei Wasser, bitte.",
                 "action_items": [
                     {
-                        "item": "aguas",
+                        "item": "Wasser",
                         "quantity": 2,
                         "normalized_item": "water",
                     }
@@ -226,14 +226,14 @@ def test_create_voice_passenger_request(monkeypatch) -> None:
     response = client.post(
         "/api/v1/seats/14C/voice-requests",
         files={"audio": ("request.webm", b"voice-bytes", "audio/webm")},
-        data={"source_language": "es"},
+        data={"source_language": "de"},
     )
 
     body = response.json()
 
     assert response.status_code == 201
     assert body["source"] == "speech"
-    assert body["source_language"] == "es"
+    assert body["source_language"] == "de"
     assert body["translated_text"] == "Seat requested 2 waters."
 
 
@@ -291,7 +291,7 @@ def test_list_crew_members(monkeypatch) -> None:
                     "role": "lead",
                     "device_id": "ipad-01",
                     "assigned_zone": "Forward cabin",
-                    "preferred_language": "fr",
+                    "preferred_language": "de",
                 }
             ],
             "message": "Crew roster loaded from Supabase.",
@@ -316,7 +316,7 @@ def test_list_crew_instructions(monkeypatch) -> None:
 
     def fake_list_crew_instructions(crew_member_code=None, preferred_language=None):
         assert crew_member_code == "crew-001"
-        assert preferred_language is None
+        assert preferred_language == "de"
         return {
             "flight_id": flight_id,
             "flight_number": "AI101",
@@ -324,9 +324,9 @@ def test_list_crew_instructions(monkeypatch) -> None:
                 {
                     "instruction_id": str(uuid4()),
                     "flight_id": flight_id,
-                    "title": "Servir les rafraichissements",
-                    "instruction_text": "Apportez de l'eau et des pommes aux passagers.",
-                    "language": "fr",
+                    "title": "Refreshments servieren",
+                    "instruction_text": "Bringen Sie Wasser und Apfel zu den Passagieren.",
+                    "language": "de",
                     "seat_numbers": ["10A", "12C"],
                     "priority": "medium",
                     "status": "open",
@@ -342,13 +342,15 @@ def test_list_crew_instructions(monkeypatch) -> None:
         fake_list_crew_instructions,
     )
 
-    response = client.get("/api/v1/crew/instructions?crew_member_code=crew-001")
+    response = client.get(
+        "/api/v1/crew/instructions?crew_member_code=crew-001&preferred_language=de"
+    )
 
     body = response.json()
 
     assert response.status_code == 200
-    assert body["items"][0]["title"] == "Servir les rafraichissements"
-    assert body["items"][0]["language"] == "fr"
+    assert body["items"][0]["title"] == "Refreshments servieren"
+    assert body["items"][0]["language"] == "de"
 
 
 def test_get_management_request_summary(monkeypatch) -> None:

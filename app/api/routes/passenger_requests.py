@@ -7,6 +7,7 @@ from app.schemas.request_management import (
     PassengerRequestListResponse,
     PassengerRequestRecord,
 )
+from app.schemas.language import LanguageCode
 from app.services.passenger_requests import (
     create_passenger_request,
     create_voice_passenger_request,
@@ -53,7 +54,7 @@ if MULTIPART_AVAILABLE:
     async def submit_voice_passenger_request(
         seat_number: str,
         audio: UploadFile = File(...),
-        source_language: str | None = Form(default=None),
+        source_language: LanguageCode = Form(default=LanguageCode.en),
     ) -> PassengerRequestRecord:
         audio_bytes = await audio.read()
         if not audio_bytes:
@@ -63,5 +64,5 @@ if MULTIPART_AVAILABLE:
             seat_number=seat_number,
             audio_bytes=audio_bytes,
             mime_type=audio.content_type or "audio/webm",
-            source_language_hint=source_language,
+            source_language_hint=source_language.value,
         )

@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.language import LanguageCode
+
 
 class PassengerAccessStatus(str, Enum):
     active = "active"
@@ -25,9 +27,9 @@ class PassengerSeatAccessRequest(BaseModel):
         default=None,
         description="Optional frontend device label for analytics or auditing.",
     )
-    preferred_language: str | None = Field(
-        default=None,
-        description="Language hint captured from the passenger device.",
+    preferred_language: LanguageCode = Field(
+        default=LanguageCode.en,
+        description="Language hint captured from the passenger device. Allowed values: en, de.",
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,

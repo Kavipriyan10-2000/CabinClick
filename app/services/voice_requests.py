@@ -12,7 +12,7 @@ Interpret the passenger's spoken request and respond with a single JSON object.
 
 Requirements:
 - Keep `passenger_message` in the same language used by the passenger.
-- Use `source_language` as an ISO-style language code when you can infer it.
+- Use `source_language` as either `en` or `de`.
 - Use a short English slug for `category` such as refreshment, comfort, medical, seat_help, or baggage.
 - Create `action_items` as an array of objects with:
   - `item`: passenger-facing item name in the passenger's language
@@ -25,12 +25,12 @@ Requirements:
 Return only JSON with this shape:
 {
   "category": "refreshment",
-  "source_language": "es",
-  "passenger_message": "Dos aguas, por favor.",
+  "source_language": "de",
+  "passenger_message": "Zwei Wasser, bitte.",
   "crew_summary": "Seat requested 2 waters.",
   "action_items": [
     {
-      "item": "aguas",
+      "item": "Wasser",
       "quantity": 2,
       "notes": null,
       "normalized_item": "water"

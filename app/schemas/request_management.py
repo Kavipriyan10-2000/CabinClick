@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.language import LanguageCode
+
 
 class PassengerRequestSource(str, Enum):
     typed = "typed"
@@ -30,9 +32,9 @@ class PassengerRequestCreate(BaseModel):
         description="Passenger-facing request text submitted from the phone screen.",
     )
     source: PassengerRequestSource = Field(default=PassengerRequestSource.typed)
-    source_language: str | None = Field(
-        default=None,
-        description="Language declared by the client when known.",
+    source_language: LanguageCode = Field(
+        default=LanguageCode.en,
+        description="Language declared by the client. Allowed values: en, de.",
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
@@ -52,7 +54,7 @@ class PassengerVoiceActionItem(BaseModel):
 
 class PassengerVoiceRequestResponse(BaseModel):
     category: str
-    source_language: str | None = None
+    source_language: LanguageCode = LanguageCode.en
     passenger_message: str
     crew_summary: str
     action_items: list[PassengerVoiceActionItem] = Field(default_factory=list)
@@ -67,7 +69,7 @@ class PassengerRequestRecord(BaseModel):
     source: PassengerRequestSource
     status: PassengerRequestStatus = PassengerRequestStatus.submitted
     request_text: str
-    source_language: str | None = None
+    source_language: LanguageCode = LanguageCode.en
     translated_text: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(

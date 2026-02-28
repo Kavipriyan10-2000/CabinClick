@@ -19,7 +19,7 @@ def emit_crew_instruction_if_needed() -> Any | None:
         .select("*")
         .eq("flight_id", flight["id"])
         .eq("status", "submitted")
-        .order("created_at", asc=True)
+        .order("created_at")
         .execute()
     )
     items = pending.data or []

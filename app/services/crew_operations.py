@@ -7,6 +7,7 @@ from app.schemas.crew_operations import (
     CrewMemberRole,
     CrewMemberSummary,
 )
+from app.schemas.language import LanguageCode
 from app.db.supabase import get_supabase_client
 from app.services._flight_context import get_active_flight
 from app.services.instruction_batcher import emit_crew_instruction_if_needed
@@ -104,7 +105,7 @@ def list_crew_members() -> CrewMemberListResponse:
             role=record["role"],
             device_id=record["device_id"],
             assigned_zone=record["assigned_zone"],
-            preferred_language=record.get("preferred_language"),
+            preferred_language=record.get("preferred_language") or LanguageCode.en,
         )
         for record in (response.data or [])
     ]
@@ -119,12 +120,17 @@ def list_crew_members() -> CrewMemberListResponse:
 def list_crew_instructions(
     *,
     crew_member_code: str | None = None,
-    preferred_language: str | None = None,
+    preferred_language: LanguageCode | str = LanguageCode.en,
 ) -> CrewInstructionListResponse:
     flight = get_active_flight()
     supabase = get_supabase_client()
     emit_crew_instruction_if_needed()
-    crew_language = preferred_language or _get_crew_member_language(
+    requested_language = (
+        preferred_language.value
+        if isinstance(preferred_language, LanguageCode)
+        else preferred_language
+    )
+    crew_language = requested_language or _get_crew_member_language(
         supabase=supabase,
         flight_id=flight["id"],
         crew_member_code=crew_member_code,
@@ -150,7 +156,7 @@ def list_crew_instructions(
                 flight_id=record["flight_id"],
                 title=title,
                 instruction_text=instruction_text,
-                language=language,
+                language=language or LanguageCode.en,
                 seat_numbers=record["seat_numbers"],
                 priority=record["priority"],
                 status=record["status"],
@@ -171,7 +177,7 @@ def _get_crew_member_language(
     supabase,
     flight_id: str,
     crew_member_code: str | None,
-) -> str | None:
+) -> str:
     if not crew_member_code:
         return None
 
@@ -185,5 +191,5 @@ def _get_crew_member_language(
     )
     records = response.data or []
     if not records:
-        return None
-    return records[0].get("preferred_language")
+        return LanguageCode.en.value
+    return records[0].get("preferred_language") or LanguageCode.en.value

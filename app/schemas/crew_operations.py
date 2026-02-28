@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.language import LanguageCode
+
 
 class CrewMemberRole(str, Enum):
     purser = "purser"
@@ -30,7 +32,7 @@ class CrewMemberSummary(BaseModel):
     role: CrewMemberRole
     device_id: str | None = None
     assigned_zone: str | None = None
-    preferred_language: str | None = None
+    preferred_language: LanguageCode = LanguageCode.en
 
 
 class CrewMemberListResponse(BaseModel):
@@ -50,7 +52,7 @@ class CrewAccessRequest(BaseModel):
     full_name: str | None = None
     role: CrewMemberRole = CrewMemberRole.attendant
     assigned_zone: str | None = None
-    preferred_language: str | None = None
+    preferred_language: LanguageCode = LanguageCode.en
 
 
 class CrewAccessResponse(BaseModel):
@@ -72,7 +74,7 @@ class CrewInstructionRecord(BaseModel):
     flight_id: UUID
     title: str
     instruction_text: str
-    language: str | None = None
+    language: LanguageCode = LanguageCode.en
     seat_numbers: list[str] = Field(default_factory=list)
     priority: CrewInstructionPriority = CrewInstructionPriority.medium
     status: CrewInstructionStatus = CrewInstructionStatus.open

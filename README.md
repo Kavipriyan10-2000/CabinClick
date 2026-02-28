@@ -104,6 +104,7 @@ Passenger submissions now drive instruction creation automatically:
 - The linked requests are marked `being_served`, and the crew devices read those rows via `GET /api/v1/crew/instructions`.
 - Voice requests keep the passenger-facing text in the original language, store an English crew summary in `translated_text`, and preserve structured action items in `metadata.action_items`.
 - Crew devices can pass `crew_member_code` or `preferred_language` to `GET /api/v1/crew/instructions` so the response text is localized for that device.
+- Language inputs are restricted to `en` or `de`, and default to `en`.
 
 The same check runs before each `GET /api/v1/crew/instructions`, so the crew device will see a fresh instruction once the criteria are met.
 
