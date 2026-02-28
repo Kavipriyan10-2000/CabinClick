@@ -5,6 +5,7 @@ from app.schemas.passenger_requests import (
     PassengerSpeechResponse,
 )
 from app.schemas.request_management import (
+    PassengerNewRequestDraftResponse,
     PassengerRequestCreate,
     PassengerRequestListResponse,
     PassengerRequestRecord,
@@ -24,12 +25,23 @@ def interpret_passenger_speech(
     )
 
 
+def build_new_passenger_request_draft(
+    seat_number: str,
+) -> PassengerNewRequestDraftResponse:
+    return PassengerNewRequestDraftResponse(
+        seat_number=seat_number,
+        selected_items=["apple", "water"],
+        custom_text="Passenger custom text",
+        message=(
+            "Dummy new request payload returned for the passenger request screen."
+        ),
+    )
+
+
 def list_passenger_requests(
-    flight_id: str,
     seat_number: str,
 ) -> PassengerRequestListResponse:
     return PassengerRequestListResponse(
-        flight_id=flight_id,
         seat_number=seat_number,
         message=(
             "Passenger request history placeholder. Persistence will be "
@@ -39,13 +51,11 @@ def list_passenger_requests(
 
 
 def create_passenger_request(
-    flight_id: str,
     seat_number: str,
     payload: PassengerRequestCreate,
 ) -> PassengerRequestRecord:
     return PassengerRequestRecord(
         request_id=uuid4(),
-        flight_id=flight_id,
         seat_number=seat_number,
         category=payload.category,
         source=payload.source,

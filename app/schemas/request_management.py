@@ -42,9 +42,21 @@ class PassengerRequestCreate(BaseModel):
     )
 
 
+class PassengerNewRequestDraftResponse(BaseModel):
+    seat_number: str
+    selected_items: list[str] = Field(
+        default_factory=list,
+        description="Dummy selections returned when the new request screen opens.",
+    )
+    custom_text: str = Field(
+        ...,
+        description="Dummy custom note returned for the first UI integration.",
+    )
+    message: str
+
+
 class PassengerRequestRecord(BaseModel):
     request_id: UUID
-    flight_id: str
     seat_number: str
     category: str
     source: PassengerRequestSource
@@ -64,7 +76,6 @@ class PassengerRequestRecord(BaseModel):
 
 
 class PassengerRequestListResponse(BaseModel):
-    flight_id: str
     seat_number: str
     items: list[PassengerRequestRecord] = Field(default_factory=list)
     message: str

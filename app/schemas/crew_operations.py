@@ -36,13 +36,11 @@ class CrewMemberSummary(BaseModel):
 
 
 class CrewMemberListResponse(BaseModel):
-    flight_id: str
     members: list[CrewMemberSummary] = Field(default_factory=list)
     message: str
 
 
 class CrewRequestFeedResponse(BaseModel):
-    flight_id: str
     items: list[PassengerRequestRecord] = Field(default_factory=list)
     message: str
 
@@ -98,7 +96,6 @@ class CrewInstructionCreate(BaseModel):
 
 class CrewInstructionRecord(BaseModel):
     instruction_id: UUID
-    flight_id: str
     title: str
     instruction_text: str
     request_ids: list[UUID] = Field(default_factory=list)
@@ -114,7 +111,6 @@ class CrewInstructionRecord(BaseModel):
 
 
 class CrewInstructionListResponse(BaseModel):
-    flight_id: str
     items: list[CrewInstructionRecord] = Field(default_factory=list)
     message: str
 
@@ -137,4 +133,70 @@ class CrewInstructionStatusUpdateResponse(BaseModel):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
+    message: str
+
+
+class CrewQueueStatus(str, Enum):
+    collecting = "collecting"
+    being_served = "being_served"
+
+
+class CrewQueueItem(BaseModel):
+    item_name: str
+    quantity: int = Field(..., ge=1)
+    seat_numbers: list[str] = Field(default_factory=list)
+    request_ids: list[UUID] = Field(default_factory=list)
+    added_to_tray: bool = False
+
+
+class CrewQueueRequestRecord(BaseModel):
+    queue_request_id: UUID
+    status: CrewQueueStatus = CrewQueueStatus.collecting
+    crew_member_id: str | None = None
+    tray_items: list[CrewQueueItem] = Field(default_factory=list)
+    pending_items: list[CrewQueueItem] = Field(default_factory=list)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
+class CrewQueueStateResponse(BaseModel):
+    active_request: CrewQueueRequestRecord
+    message: str
+
+
+class CrewQueueTraySelection(BaseModel):
+    item_name: str
+    seat_numbers: list[str] = Field(default_factory=list)
+    request_ids: list[UUID] = Field(default_factory=list)
+    quantity: int = Field(default=1, ge=1)
+
+
+class CrewQueueAddToTrayRequest(BaseModel):
+    crew_member_id: str
+    selections: list[CrewQueueTraySelection] = Field(
+        default_factory=list,
+        description="Items the crew member has physically added to the tray.",
+    )
+
+
+class CrewQueueAddToTrayResponse(BaseModel):
+    active_request: CrewQueueRequestRecord
+    message: str
+
+
+class CrewQueueDispatchRequest(BaseModel):
+    crew_member_id: str
+    note: str | None = Field(
+        default=None,
+        description="Optional note captured when the crew member leaves to serve.",
+    )
+
+
+class CrewQueueDispatchResponse(BaseModel):
+    served_request: CrewQueueRequestRecord
+    next_request: CrewQueueRequestRecord
     message: str

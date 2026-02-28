@@ -1,6 +1,11 @@
 from fastapi import APIRouter, status
 
 from app.schemas.crew_operations import (
+    CrewQueueAddToTrayRequest,
+    CrewQueueAddToTrayResponse,
+    CrewQueueDispatchRequest,
+    CrewQueueDispatchResponse,
+    CrewQueueStateResponse,
     CrewInstructionCreate,
     CrewInstructionListResponse,
     CrewInstructionRecord,
@@ -12,10 +17,13 @@ from app.schemas.crew_operations import (
     CrewRequestStatusUpdateResponse,
 )
 from app.services.crew_operations import (
+    add_items_to_queue_tray,
     create_crew_instruction,
+    dispatch_queue_request,
+    get_active_queue_request,
     list_crew_instructions,
     list_crew_members,
-    list_flight_requests_for_crew,
+    list_requests_for_crew,
     update_crew_instruction_status,
     update_passenger_request_status,
 )
@@ -24,19 +32,47 @@ router = APIRouter(prefix="/crew", tags=["crew"])
 
 
 @router.get(
-    "/flights/{flight_id}/members",
+    "/members",
     response_model=CrewMemberListResponse,
 )
-def get_flight_crew_members(flight_id: str) -> CrewMemberListResponse:
-    return list_crew_members(flight_id=flight_id)
+def get_crew_members() -> CrewMemberListResponse:
+    return list_crew_members()
 
 
 @router.get(
-    "/flights/{flight_id}/requests",
+    "/requests",
     response_model=CrewRequestFeedResponse,
 )
-def get_flight_requests(flight_id: str) -> CrewRequestFeedResponse:
-    return list_flight_requests_for_crew(flight_id=flight_id)
+def get_requests() -> CrewRequestFeedResponse:
+    return list_requests_for_crew()
+
+
+@router.get(
+    "/queue/current",
+    response_model=CrewQueueStateResponse,
+)
+def get_current_queue_request() -> CrewQueueStateResponse:
+    return get_active_queue_request()
+
+
+@router.post(
+    "/queue/current/tray-items",
+    response_model=CrewQueueAddToTrayResponse,
+)
+def post_queue_tray_items(
+    payload: CrewQueueAddToTrayRequest,
+) -> CrewQueueAddToTrayResponse:
+    return add_items_to_queue_tray(payload=payload)
+
+
+@router.post(
+    "/queue/current/dispatch",
+    response_model=CrewQueueDispatchResponse,
+)
+def post_queue_dispatch(
+    payload: CrewQueueDispatchRequest,
+) -> CrewQueueDispatchResponse:
+    return dispatch_queue_request(payload=payload)
 
 
 @router.patch(
@@ -51,23 +87,22 @@ def patch_passenger_request_status(
 
 
 @router.get(
-    "/flights/{flight_id}/instructions",
+    "/instructions",
     response_model=CrewInstructionListResponse,
 )
-def get_flight_instructions(flight_id: str) -> CrewInstructionListResponse:
-    return list_crew_instructions(flight_id=flight_id)
+def get_instructions() -> CrewInstructionListResponse:
+    return list_crew_instructions()
 
 
 @router.post(
-    "/flights/{flight_id}/instructions",
+    "/instructions",
     response_model=CrewInstructionRecord,
     status_code=status.HTTP_201_CREATED,
 )
 def post_crew_instruction(
-    flight_id: str,
     payload: CrewInstructionCreate,
 ) -> CrewInstructionRecord:
-    return create_crew_instruction(flight_id=flight_id, payload=payload)
+    return create_crew_instruction(payload=payload)
 
 
 @router.patch(
