@@ -13,8 +13,17 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { CabinHeader } from "@/components/cabin-header"
+import type { PassengerRequestRecord } from "@/lib/backend-api"
+
+type SeatInfo = {
+  seat: string
+  flightNumber: string
+  route: string
+}
 
 type DashboardProps = {
+  seatInfo: SeatInfo
+  activeRequest: PassengerRequestRecord | null
   onServiceSelect: (service: string) => void
   onCustomRequest: () => void
   onSOS: () => void
@@ -23,6 +32,8 @@ type DashboardProps = {
 }
 
 export function Dashboard({
+  seatInfo,
+  activeRequest,
   onServiceSelect,
   onCustomRequest,
   onSOS,
@@ -44,9 +55,9 @@ export function Dashboard({
     <div className="min-h-screen bg-background flex flex-col">
       <CabinHeader
         showFlightInfo
-        flightNumber="LH441"
-        route={"FRANKFURT \u2192 NEW YORK"}
-        seat="14A"
+        flightNumber={seatInfo.flightNumber}
+        route={seatInfo.route}
+        seat={seatInfo.seat}
         showUser
       />
 
@@ -95,6 +106,7 @@ export function Dashboard({
         {/* Active request */}
         <button
           onClick={onRequestDetails}
+          disabled={!activeRequest}
           className="w-full bg-card rounded-xl px-4 py-3 mb-6 flex items-center gap-3 shadow-sm border border-border hover:border-cabin-gold/50 transition-colors"
           aria-label="View active request details"
         >
@@ -103,17 +115,29 @@ export function Dashboard({
           </div>
           <div className="flex-1 text-left">
             <p className="font-semibold text-cabin-navy text-sm">
-              {t.activeRequest}: {t.water}
+              {activeRequest
+                ? `${t.activeRequest}: ${activeRequest.request_text}`
+                : "No active request"}
             </p>
             <p className="text-xs">
-              <span className="text-[#3B82F6]">{t.acknowledged}</span>
-              <span className="text-muted-foreground">
-                {" \u00b7 "}
-                {t.estimatedTime}
-              </span>
+              {activeRequest ? (
+                <>
+                  <span className="text-[#3B82F6]">{activeRequest.status}</span>
+                  <span className="text-muted-foreground">
+                    {" \u00b7 "}
+                    {t.estimatedTime}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  Submit a service request to track it here
+                </span>
+              )}
             </p>
           </div>
-          <span className="text-cabin-navy text-xs font-bold">{t.details}</span>
+          <span className="text-cabin-navy text-xs font-bold">
+            {activeRequest ? t.details : "Ready"}
+          </span>
         </button>
 
         {/* Services */}

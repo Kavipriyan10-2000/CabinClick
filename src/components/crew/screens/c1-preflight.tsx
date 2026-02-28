@@ -1,12 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { Plane, Users, MapPin, Clock, ChevronRight, Check } from "lucide-react"
+import { Plane, MapPin, Clock, ChevronRight, Check } from "lucide-react"
 import type { CrewMember } from "@/lib/crew-types"
 import { MOCK_CREW } from "@/lib/crew-types"
 
 type C1PreflightProps = {
-  onActivate: (flightNumber: string) => void
+  onActivate: (details: {
+    flightNumber: string
+    route: string
+    departureTime: string
+  }) => Promise<void> | void
+  isSubmitting?: boolean
+  errorMessage?: string | null
 }
 
 const ZONES = [
@@ -25,7 +31,11 @@ const SERVICE_TIMELINE = [
   { time: "T+7:30",  label: "Landing preparation" },
 ]
 
-export function C1Preflight({ onActivate }: C1PreflightProps) {
+export function C1Preflight({
+  onActivate,
+  isSubmitting = false,
+  errorMessage = null,
+}: C1PreflightProps) {
   const [flightNumber, setFlightNumber] = useState("LH441")
   const [route,        setRoute]        = useState("Frankfurt → New York JFK")
   const [aircraft,     setAircraft]     = useState("Boeing 747-8")
@@ -44,9 +54,13 @@ export function C1Preflight({ onActivate }: C1PreflightProps) {
     )
   }
 
-  function handleActivate() {
+  async function handleActivate() {
+    await onActivate({
+      flightNumber,
+      route,
+      departureTime,
+    })
     setActivated(true)
-    setTimeout(() => onActivate(flightNumber), 1500)
   }
 
   if (activated) {
@@ -89,13 +103,14 @@ export function C1Preflight({ onActivate }: C1PreflightProps) {
         ))}
 
         <div className="mt-auto">
-          <button
-            onClick={handleActivate}
-            className="w-full bg-cabin-gold text-cabin-navy font-black py-3 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-all text-sm"
-          >
-            <Plane className="w-4 h-4" />
-            Activate
-          </button>
+            <button
+              onClick={handleActivate}
+              disabled={isSubmitting}
+              className="w-full bg-cabin-gold text-cabin-navy font-black py-3 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-all text-sm"
+            >
+              <Plane className="w-4 h-4" />
+              {isSubmitting ? "Activating..." : "Activate"}
+            </button>
         </div>
       </div>
 
@@ -266,11 +281,18 @@ export function C1Preflight({ onActivate }: C1PreflightProps) {
 
             <button
               onClick={handleActivate}
+              disabled={isSubmitting}
               className="w-full bg-cabin-gold text-cabin-navy font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-md"
             >
               <Plane className="w-5 h-5" />
-              Activate Flight — {flightNumber}
+              {isSubmitting ? "Activating flight..." : `Activate Flight — ${flightNumber}`}
             </button>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="mt-4 max-w-lg rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {errorMessage}
           </div>
         )}
       </div>

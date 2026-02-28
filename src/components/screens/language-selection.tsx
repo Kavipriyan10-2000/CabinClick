@@ -7,9 +7,13 @@ import { useLanguage } from "@/lib/language-context"
 
 type LanguageSelectionProps = {
   onContinue: () => void
+  isLoading?: boolean
 }
 
-export function LanguageSelection({ onContinue }: LanguageSelectionProps) {
+export function LanguageSelection({
+  onContinue,
+  isLoading = false,
+}: LanguageSelectionProps) {
   const { locale, setLocale, t } = useLanguage()
   const [selected, setSelected] = useState<Locale>(locale)
 
@@ -59,9 +63,10 @@ export function LanguageSelection({ onContinue }: LanguageSelectionProps) {
 
         <button
           onClick={onContinue}
+          disabled={isLoading}
           className="mt-8 w-full max-w-md bg-cabin-navy text-card font-semibold py-4 rounded-xl hover:opacity-90 transition-opacity text-base"
         >
-          {t.continueBtn}
+          {isLoading ? "Connecting..." : t.continueBtn}
         </button>
       </div>
 

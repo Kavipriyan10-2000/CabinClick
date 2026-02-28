@@ -3,21 +3,57 @@
 import { ArrowLeft, Droplet, Clock, Check, Plane } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { CabinHeader } from "@/components/cabin-header"
+import type { PassengerRequestRecord } from "@/lib/backend-api"
 
 type RequestTrackingProps = {
   onBack: () => void
   itemName?: string
+  request: PassengerRequestRecord | null
+  seatInfo: {
+    seat: string
+    flightNumber: string
+    route: string
+  }
 }
 
-const steps = [
-  { key: "submitted", completed: true, active: false },
-  { key: "acknowledged", completed: true, active: false },
-  { key: "onTheWay", completed: false, active: true },
-  { key: "delivered", completed: false, active: false },
-]
-
-export function RequestTracking({ onBack, itemName = "Water" }: RequestTrackingProps) {
+export function RequestTracking({
+  onBack,
+  itemName = "Water",
+  request,
+  seatInfo,
+}: RequestTrackingProps) {
   const { t } = useLanguage()
+
+  const steps = [
+    {
+      key: "submitted",
+      completed: true,
+      active: request?.status === "submitted",
+    },
+    {
+      key: "acknowledged",
+      completed:
+        request?.status === "being_served" || request?.status === "completed",
+      active: request?.status === "submitted",
+    },
+    {
+      key: "onTheWay",
+      completed: request?.status === "completed",
+      active: request?.status === "being_served",
+    },
+    {
+      key: "delivered",
+      completed: request?.status === "completed",
+      active: request?.status === "completed",
+    },
+  ]
+
+  const progressWidth =
+    request?.status === "completed"
+      ? "100%"
+      : request?.status === "being_served"
+        ? "66%"
+        : "33%"
 
   const stepLabels: Record<string, string> = {
     submitted: t.submitted,
@@ -28,7 +64,15 @@ export function RequestTracking({ onBack, itemName = "Water" }: RequestTrackingP
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <CabinHeader showBack onBack={onBack} showUser />
+      <CabinHeader
+        showBack
+        onBack={onBack}
+        showFlightInfo
+        flightNumber={seatInfo.flightNumber}
+        route={seatInfo.route}
+        seat={seatInfo.seat}
+        showUser
+      />
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         {/* Progress bar */}
@@ -36,7 +80,7 @@ export function RequestTracking({ onBack, itemName = "Water" }: RequestTrackingP
           <div className="w-full bg-muted rounded-full h-1.5">
             <div
               className="bg-cabin-navy h-1.5 rounded-full transition-all duration-500"
-              style={{ width: "66%" }}
+              style={{ width: progressWidth }}
             />
           </div>
         </div>
@@ -49,11 +93,15 @@ export function RequestTracking({ onBack, itemName = "Water" }: RequestTrackingP
 
           <h1 className="text-2xl font-bold text-cabin-navy mb-1 capitalize">{itemName}</h1>
           <p className="text-muted-foreground text-sm mb-4">
-            {t.requestNumber} #8392 {" \u2022 "}
-            <span className="text-cabin-navy font-semibold">{t.inProgress}</span>
+            {t.requestNumber} #{request?.request_id.slice(0, 8) || "pending"} {" \u2022 "}
+            <span className="text-cabin-navy font-semibold">
+              {request?.status === "completed" ? t.delivered : t.inProgress}
+            </span>
           </p>
 
-          <h2 className="text-lg font-bold text-cabin-navy mb-3">{t.onItsWay}</h2>
+          <h2 className="text-lg font-bold text-cabin-navy mb-3">
+            {request?.status === "completed" ? t.delivered : t.onItsWay}
+          </h2>
 
           <div className="inline-flex items-center gap-2 bg-[#FFF9E6] rounded-full px-4 py-2 mb-8">
             <Clock className="w-4 h-4 text-cabin-gold" />

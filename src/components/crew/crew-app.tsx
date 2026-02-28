@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   ListOrdered,
   Map,
@@ -13,97 +13,363 @@ import {
   Clock,
   AlertTriangle,
 } from "lucide-react"
-import { C1Preflight }              from "@/components/crew/screens/c1-preflight"
-import { C2RequestQueue }           from "@/components/crew/screens/c2-request-queue"
-import { C3TripPlan }               from "@/components/crew/screens/c3-trip-plan"
-import { C4SOSAlert }               from "@/components/crew/screens/c4-sos-alert"
-import { C5NotificationComposer }   from "@/components/crew/screens/c5-notification-composer"
-import { C6SeatMap }                from "@/components/crew/screens/c6-seat-map"
-import { C7PostFlight }             from "@/components/crew/screens/c7-post-flight"
+import { C1Preflight } from "@/components/crew/screens/c1-preflight"
+import { C2RequestQueue } from "@/components/crew/screens/c2-request-queue"
+import { C3TripPlan } from "@/components/crew/screens/c3-trip-plan"
+import { C4SOSAlert } from "@/components/crew/screens/c4-sos-alert"
+import { C5NotificationComposer } from "@/components/crew/screens/c5-notification-composer"
+import { C6SeatMap } from "@/components/crew/screens/c6-seat-map"
+import { C7PostFlight } from "@/components/crew/screens/c7-post-flight"
 import {
-  INITIAL_REQUESTS,
+  MOCK_FLIGHT,
   MOCK_SEATS,
   MOCK_CREW,
-  MOCK_FLIGHT,
   type CrewRequest,
-  type SeatData,
+  type CrewMember,
 } from "@/lib/crew-types"
+import {
+  ApiError,
+  createCrewAccess,
+  ensureFlightRegistration,
+  getCrewMembers,
+  getCrewRequestQueue,
+  toBackendLanguage,
+  type CrewMemberSummary,
+  type CrewQueueRequestRecord,
+} from "@/lib/backend-api"
 
-type CrewScreen = "preflight" | "queue" | "trip" | "seatmap" | "compose" | "summary"
+type CrewScreen =
+  | "preflight"
+  | "queue"
+  | "trip"
+  | "seatmap"
+  | "compose"
+  | "summary"
 
 const NAV_ITEMS: { id: CrewScreen; icon: React.ElementType; label: string }[] = [
-  { id: "queue",    icon: ListOrdered, label: "Requests" },
-  { id: "seatmap",  icon: Map,         label: "Seat Map" },
-  { id: "trip",     icon: Route,       label: "Trip Plan" },
-  { id: "compose",  icon: Bell,        label: "Notify" },
-  { id: "summary",  icon: BarChart3,   label: "Summary" },
-  { id: "preflight",icon: Settings,    label: "Setup" },
+  { id: "queue", icon: ListOrdered, label: "Requests" },
+  { id: "seatmap", icon: Map, label: "Seat Map" },
+  { id: "trip", icon: Route, label: "Trip Plan" },
+  { id: "compose", icon: Bell, label: "Notify" },
+  { id: "summary", icon: BarChart3, label: "Summary" },
+  { id: "preflight", icon: Settings, label: "Setup" },
 ]
 
+type FlightDraft = {
+  flightNumber: string
+  route: string
+}
+
+type RequestStatusOverride = Record<string, CrewRequest["status"]>
+
 function useLiveClock() {
-  const [time, setTime] = useState(() => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  )
+
   useEffect(() => {
-    const iv = setInterval(() => setTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })), 10000)
-    return () => clearInterval(iv)
+    const intervalId = setInterval(() => {
+      setTime(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      )
+    }, 10000)
+
+    return () => clearInterval(intervalId)
   }, [])
+
   return time
 }
 
+function formatError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.message
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return "Crew backend connection failed."
+}
+
+function getOrCreateCrewIdentity() {
+  const storedCode = window.localStorage.getItem("cabinclick-crew-code")
+  const storedDeviceId = window.localStorage.getItem("cabinclick-crew-device-id")
+
+  const crewCode = storedCode || "crew-001"
+  const deviceId =
+    storedDeviceId || `ipad-web-${Math.random().toString(36).slice(2, 10)}`
+
+  window.localStorage.setItem("cabinclick-crew-code", crewCode)
+  window.localStorage.setItem("cabinclick-crew-device-id", deviceId)
+
+  return { crewCode, deviceId }
+}
+
+function deriveZone(seatNumber: string): "A" | "B" | "C" {
+  const rowNumber = Number.parseInt(seatNumber, 10)
+  if (rowNumber <= 6) {
+    return "A"
+  }
+  if (rowNumber <= 20) {
+    return "B"
+  }
+  return "C"
+}
+
+function normalizeCrewRole(role: string): CrewMember["role"] {
+  return role === "purser" || role === "lead" ? "manager" : "attendant"
+}
+
+function normalizeRequestCategory(category: string): CrewRequest["category"] {
+  if (category === "sos") {
+    return "sos"
+  }
+  if (category === "medical") {
+    return "medical"
+  }
+  if (
+    category === "drinks" ||
+    category === "food" ||
+    category === "comfort" ||
+    category === "hygiene" ||
+    category === "practical"
+  ) {
+    return category
+  }
+  return "custom"
+}
+
+function mapCrewMembers(members: CrewMemberSummary[]): CrewMember[] {
+  if (members.length === 0) {
+    return MOCK_CREW
+  }
+
+  return members.map((member, index) => {
+    const nameParts = member.full_name.split(" ")
+    const initials = nameParts
+      .slice(0, 2)
+      .map((part) => part[0] || "")
+      .join("")
+      .toUpperCase()
+
+    return {
+      id: member.crew_member_id,
+      name: member.full_name,
+      initials: initials || `C${index + 1}`,
+      role: normalizeCrewRole(member.role),
+      zone:
+        member.assigned_zone === "A" ||
+        member.assigned_zone === "B" ||
+        member.assigned_zone === "C"
+          ? member.assigned_zone
+          : "all",
+      status: member.device_id ? "available" : "break",
+    }
+  })
+}
+
+function mapQueueRequests(
+  items: CrewQueueRequestRecord[],
+  statusOverrides: RequestStatusOverride,
+): CrewRequest[] {
+  return items.map((item) => {
+    const category = normalizeRequestCategory(item.category)
+    const priority =
+      category === "sos" ? "sos" : category === "medical" ? "high" : "normal"
+
+    return {
+      id: item.request_id,
+      seat: item.seat_number,
+      zone: deriveZone(item.seat_number),
+      item: item.request_text,
+      category,
+      originalLanguage: item.language.toUpperCase(),
+      translatedText: item.display_text,
+      originalText: item.request_text,
+      status: statusOverrides[item.request_id] || "pending",
+      priority,
+      submittedAt: new Date(item.created_at),
+    }
+  })
+}
+
+function parseRoute(route: string) {
+  const [origin, destination] = route.split("→").map((value) => value.trim())
+  return {
+    origin: origin || "Frankfurt",
+    destination: destination || "New York",
+  }
+}
+
 export function CrewApp() {
-  const [activated, setActivated]       = useState(false)
-  const [flightNumber, setFlightNumber] = useState(MOCK_FLIGHT.flightNumber)
-  const [screen, setScreen]             = useState<CrewScreen>("queue")
-  const [requests, setRequests]         = useState<CrewRequest[]>(INITIAL_REQUESTS)
-  const [seats]                         = useState(MOCK_SEATS)
-  const [crew]                          = useState(MOCK_CREW)
+  const [activated, setActivated] = useState(false)
+  const [isActivating, setIsActivating] = useState(false)
+  const [crewError, setCrewError] = useState<string | null>(null)
+  const [screen, setScreen] = useState<CrewScreen>("queue")
+  const [flightDraft, setFlightDraft] = useState<FlightDraft>({
+    flightNumber: MOCK_FLIGHT.flightNumber,
+    route: `${MOCK_FLIGHT.origin} → ${MOCK_FLIGHT.destination}`,
+  })
+  const [requests, setRequests] = useState<CrewRequest[]>([])
+  const [requestStatusOverrides, setRequestStatusOverrides] =
+    useState<RequestStatusOverride>({})
+  const [seats] = useState(MOCK_SEATS)
+  const [crew, setCrew] = useState<CrewMember[]>(MOCK_CREW)
   const [tripRequests, setTripRequests] = useState<CrewRequest[]>([])
-  const [activeSOS, setActiveSOS]       = useState<CrewRequest | null>(null)
-  const clock                           = useLiveClock()
+  const [activeSOS, setActiveSOS] = useState<CrewRequest | null>(null)
+  const [crewMemberCode, setCrewMemberCode] = useState<string | null>(null)
+  const clock = useLiveClock()
 
-  // Simulate incoming SOS after 20s (demo only)
+  const loadCrewData = useCallback(async () => {
+    if (!crewMemberCode) {
+      return
+    }
+
+    try {
+      const [membersResponse, queueResponse] = await Promise.all([
+        getCrewMembers(),
+        getCrewRequestQueue({
+          crew_member_code: crewMemberCode,
+          preferred_language: "en",
+        }),
+      ])
+
+      setCrew(mapCrewMembers(membersResponse.members))
+      setRequests(mapQueueRequests(queueResponse.items, requestStatusOverrides))
+      setCrewError(null)
+    } catch (error) {
+      setCrewError(formatError(error))
+    }
+  }, [crewMemberCode, requestStatusOverrides])
+
   useEffect(() => {
-    if (!activated) return
-    const timer = setTimeout(() => {
-      const sosReq: CrewRequest = {
-        id: "sos-demo",
-        seat: "19C",
-        zone: "B",
-        item: "SOS Emergency",
-        category: "sos",
-        originalLanguage: "DE",
-        originalText: "Ich fühle mich sehr unwohl, mir ist schlecht",
-        translatedText: "Feeling very unwell, nauseous",
-        status: "pending",
-        priority: "sos",
-        submittedAt: new Date(),
-      }
-      setRequests((prev) => [sosReq, ...prev])
-      setActiveSOS(sosReq)
-    }, 20000)
-    return () => clearTimeout(timer)
-  }, [activated])
+    if (!activated || !crewMemberCode) {
+      return
+    }
 
-  const handleAcknowledge = useCallback((id: string) => {
-    setRequests((prev) =>
-      prev.map((r) => r.id === id ? { ...r, status: "acknowledged", acknowledgedAt: new Date() } : r)
+    void loadCrewData()
+    const intervalId = window.setInterval(() => {
+      void loadCrewData()
+    }, 8000)
+
+    return () => window.clearInterval(intervalId)
+  }, [activated, crewMemberCode, loadCrewData])
+
+  useEffect(() => {
+    const activeSosRequest =
+      requests.find((request) => request.category === "sos") || null
+    setActiveSOS(activeSosRequest)
+  }, [requests])
+
+  const activateCrewWorkspace = useCallback(
+    async ({
+      flightNumber,
+      route,
+    }: {
+      flightNumber: string
+      route: string
+      departureTime: string
+    }) => {
+      setIsActivating(true)
+      setCrewError(null)
+
+      try {
+        const { origin, destination } = parseRoute(route)
+        const { crewCode, deviceId } = getOrCreateCrewIdentity()
+
+        await ensureFlightRegistration({
+          flight_number: flightNumber,
+          origin,
+          destination,
+          departure_date: new Date().toISOString().slice(0, 10),
+        })
+
+        await createCrewAccess({
+          crew_member_code: crewCode,
+          device_id: deviceId,
+          full_name: "Cabin Crew Web",
+          role: "attendant",
+          assigned_zone: "B",
+          preferred_language: toBackendLanguage("en"),
+        })
+
+        setCrewMemberCode(crewCode)
+        setFlightDraft({
+          flightNumber,
+          route,
+        })
+        setActivated(true)
+        setScreen("queue")
+      } catch (error) {
+        setCrewError(formatError(error))
+        throw error
+      } finally {
+        setIsActivating(false)
+      }
+    },
+    [],
+  )
+
+  const handleAcknowledge = useCallback((requestId: string) => {
+    setRequestStatusOverrides((current) => ({
+      ...current,
+      [requestId]: "acknowledged",
+    }))
+    setRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "acknowledged",
+              acknowledgedAt: new Date(),
+            }
+          : request,
+      ),
     )
   }, [])
 
-  const handleSOSAcknowledge = useCallback((id: string, assignedTo: string) => {
-    setRequests((prev) =>
-      prev.map((r) => r.id === id ? { ...r, status: "acknowledged", acknowledgedAt: new Date(), assignedTo } : r)
+  const handleSOSAcknowledge = useCallback((requestId: string, assignedTo: string) => {
+    setRequestStatusOverrides((current) => ({
+      ...current,
+      [requestId]: "acknowledged",
+    }))
+    setRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "acknowledged",
+              acknowledgedAt: new Date(),
+              assignedTo,
+            }
+          : request,
+      ),
     )
     setActiveSOS(null)
   }, [])
 
-  const handleStartTrip = useCallback((tripReqs: CrewRequest[]) => {
-    setTripRequests(tripReqs)
+  const handleStartTrip = useCallback((zoneRequests: CrewRequest[]) => {
+    setTripRequests(zoneRequests)
     setScreen("trip")
   }, [])
 
-  const handleDelivered = useCallback((id: string) => {
-    setRequests((prev) =>
-      prev.map((r) => r.id === id ? { ...r, status: "delivered", deliveredAt: new Date() } : r)
+  const handleDelivered = useCallback((requestId: string) => {
+    setRequestStatusOverrides((current) => ({
+      ...current,
+      [requestId]: "delivered",
+    }))
+    setRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "delivered",
+              deliveredAt: new Date(),
+            }
+          : request,
+      ),
     )
   }, [])
 
@@ -112,22 +378,22 @@ export function CrewApp() {
     setScreen("queue")
   }, [])
 
-  const handleSeatClick = useCallback((_seat: SeatData) => {
-    // Could open a detail panel or jump to the related request
+  const handleSeatClick = useCallback(() => {
+    // Seat interactions remain visual for now.
   }, [])
 
-  const pendingCount  = requests.filter((r) => r.status === "pending").length
-  const sosCount      = requests.filter((r) => r.category === "sos").length
+  const pendingCount = requests.filter((request) => request.status === "pending").length
+  const sosCount = requests.filter((request) => request.category === "sos").length
 
-  // Pre-flight gate
   if (!activated) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        {/* Header */}
         <header className="flex items-center justify-between px-6 py-3 bg-cabin-navy border-b border-white/10">
           <div className="flex items-center gap-3">
             <Plane className="w-5 h-5 text-cabin-gold" />
-            <span className="font-black text-white text-base">CabinClick <span className="text-cabin-gold">Crew</span></span>
+            <span className="font-black text-white text-base">
+              CabinClick <span className="text-cabin-gold">Crew</span>
+            </span>
           </div>
           <div className="flex items-center gap-3 text-white/60 text-xs">
             <Wifi className="w-4 h-4" />
@@ -136,7 +402,11 @@ export function CrewApp() {
         </header>
 
         <div className="flex-1">
-          <C1Preflight onActivate={(fn) => { setFlightNumber(fn); setActivated(true) }} />
+          <C1Preflight
+            errorMessage={crewError}
+            isSubmitting={isActivating}
+            onActivate={(details) => activateCrewWorkspace(details)}
+          />
         </div>
       </div>
     )
@@ -144,7 +414,6 @@ export function CrewApp() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* SOS Overlay */}
       {activeSOS && (
         <C4SOSAlert
           request={activeSOS}
@@ -154,40 +423,47 @@ export function CrewApp() {
         />
       )}
 
-      {/* iPad-style header */}
       <header className="flex items-center justify-between px-6 py-2.5 bg-cabin-navy border-b border-white/10 z-10">
         <div className="flex items-center gap-3">
           <Plane className="w-4 h-4 text-cabin-gold" />
-          <span className="font-black text-white text-sm">CabinClick <span className="text-cabin-gold">Crew</span></span>
+          <span className="font-black text-white text-sm">
+            CabinClick <span className="text-cabin-gold">Crew</span>
+          </span>
           <div className="h-4 w-px bg-white/20" />
-          <span className="text-cabin-gold text-sm font-black">{flightNumber}</span>
-          <span className="text-white/60 text-xs">{MOCK_FLIGHT.origin} → {MOCK_FLIGHT.destination}</span>
+          <span className="text-cabin-gold text-sm font-black">
+            {flightDraft.flightNumber}
+          </span>
+          <span className="text-white/60 text-xs">{flightDraft.route}</span>
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Crew avatars */}
           <div className="flex -space-x-2">
-            {crew.slice(0, 4).map((c) => (
+            {crew.slice(0, 4).map((member) => (
               <div
-                key={c.id}
-                title={c.name}
+                key={member.id}
+                title={member.name}
                 className={`w-7 h-7 rounded-full border-2 border-cabin-navy flex items-center justify-center text-[10px] font-black text-white ${
-                  c.status === "available" ? "bg-cabin-success" :
-                  c.status === "serving"   ? "bg-blue-500" :
-                  "bg-gray-400"
+                  member.status === "available"
+                    ? "bg-cabin-success"
+                    : member.status === "serving"
+                      ? "bg-blue-500"
+                      : "bg-gray-400"
                 }`}
               >
-                {c.initials}
+                {member.initials}
               </div>
             ))}
           </div>
 
-          {/* SOS indicator */}
           {sosCount > 0 && (
             <button
               onClick={() => {
-                const s = requests.find((r) => r.category === "sos")
-                if (s) setActiveSOS(s)
+                const sosRequest = requests.find(
+                  (request) => request.category === "sos",
+                )
+                if (sosRequest) {
+                  setActiveSOS(sosRequest)
+                }
               }}
               className="flex items-center gap-1.5 px-2 py-1 bg-red-600 rounded-lg text-white text-xs font-black animate-pulse"
             >
@@ -207,9 +483,15 @@ export function CrewApp() {
         </div>
       </header>
 
-      {/* Main layout: sidebar + content */}
+      {crewError && (
+        <div className="px-5 pt-4">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {crewError}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar navigation */}
         <nav className="w-20 bg-cabin-navy/95 flex flex-col items-center py-4 gap-1 border-r border-white/5">
           {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
             const isActive = screen === id
@@ -226,7 +508,9 @@ export function CrewApp() {
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-semibold leading-none">{label}</span>
+                <span className="text-[10px] font-semibold leading-none">
+                  {label}
+                </span>
                 {badge > 0 && (
                   <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-cabin-gold text-cabin-navy rounded-full flex items-center justify-center text-[9px] font-black">
                     {badge > 9 ? "9+" : badge}
@@ -237,24 +521,25 @@ export function CrewApp() {
           })}
         </nav>
 
-        {/* Content area */}
         <main className="flex-1 min-h-0 overflow-hidden bg-background">
-          {/* Screen title bar */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card">
             <h1 className="font-black text-cabin-navy text-base">
-              {screen === "queue"    && "Live Request Queue"}
-              {screen === "seatmap"  && "Seat Map Overview"}
-              {screen === "trip"     && "Trip Plan"}
-              {screen === "compose"  && "Notification Composer"}
-              {screen === "summary"  && "Post-Flight Summary"}
-              {screen === "preflight"&& "Flight Setup"}
+              {screen === "queue" && "Live Request Queue"}
+              {screen === "seatmap" && "Seat Map Overview"}
+              {screen === "trip" && "Trip Plan"}
+              {screen === "compose" && "Notification Composer"}
+              {screen === "summary" && "Post-Flight Summary"}
+              {screen === "preflight" && "Flight Setup"}
             </h1>
             <div className="text-xs text-muted-foreground">
-              {new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+              {new Date().toLocaleDateString([], {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
             </div>
           </div>
 
-          {/* Screen content */}
           <div className="h-[calc(100vh-108px)] overflow-hidden">
             {screen === "queue" && (
               <C2RequestQueue
@@ -277,10 +562,16 @@ export function CrewApp() {
 
             {screen === "trip" && (
               <C3TripPlan
-                requests={tripRequests.length > 0 ? tripRequests : requests.filter((r) => r.status !== "delivered")}
+                requests={
+                  tripRequests.length > 0
+                    ? tripRequests
+                    : requests.filter((request) => request.status !== "delivered")
+                }
                 onDelivered={handleDelivered}
                 onComplete={handleTripComplete}
-                onAddRequest={(r) => setRequests((prev) => [...prev, r])}
+                onAddRequest={(request) =>
+                  setRequests((currentRequests) => [...currentRequests, request])
+                }
               />
             )}
 
@@ -290,13 +581,17 @@ export function CrewApp() {
               <C7PostFlight
                 requests={requests}
                 crew={crew}
-                flightNumber={flightNumber}
-                route={`${MOCK_FLIGHT.origin} → ${MOCK_FLIGHT.destination}`}
+                flightNumber={flightDraft.flightNumber}
+                route={flightDraft.route}
               />
             )}
 
             {screen === "preflight" && (
-              <C1Preflight onActivate={(fn) => { setFlightNumber(fn); setScreen("queue") }} />
+              <C1Preflight
+                errorMessage={crewError}
+                isSubmitting={isActivating}
+                onActivate={(details) => activateCrewWorkspace(details)}
+              />
             )}
           </div>
         </main>
