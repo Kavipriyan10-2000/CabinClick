@@ -3,7 +3,6 @@
 import { AlertTriangle, Info, Check, Droplet, Leaf, Circle, Square } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { CabinHeader } from "@/components/cabin-header"
-import Image from "next/image"
 
 type SnackDetailProps = {
   onBack: () => void
@@ -42,18 +41,8 @@ export function SnackDetail({
         </p>
 
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Image and allergens */}
+          {/* Allergens */}
           <div className="md:w-1/2">
-            <div className="rounded-xl overflow-hidden mb-4">
-              <Image
-                src="/images/snack.jpg"
-                alt="Premium in-flight snack"
-                width={400}
-                height={300}
-                className="w-full h-48 object-cover"
-              />
-            </div>
-
             <div className="border-l-4 border-cabin-gold bg-[#FFF9E6] rounded-r-lg p-4 mb-4">
               <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle className="w-4 h-4 text-cabin-gold" />
