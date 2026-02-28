@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from uuid import uuid4
 
 from app.main import app
+from app.api.routes import passenger_requests as passenger_requests_route
 
 client = TestClient(app)
 
@@ -61,7 +62,7 @@ def test_register_flight(monkeypatch) -> None:
     assert body["status"] == "active"
 
 
-def test_create_passenger_seat_access() -> None:
+def test_create_passenger_seat_access(monkeypatch) -> None:
     def fake_grant_seat_access(seat_number, payload):
         return {
             "access_id": str(uuid4()),
@@ -112,6 +113,9 @@ def test_list_passenger_requests(monkeypatch) -> None:
                     "source": "typed",
                     "status": "being_served",
                     "request_text": "Water please",
+                    "source_language": "en",
+                    "translated_text": "Water please",
+                    "metadata": {"action_items": [{"item": "Water", "quantity": 1}]},
                     "created_at": "2026-02-28T12:00:00+00:00",
                     "updated_at": "2026-02-28T12:05:00+00:00",
                 }
@@ -145,6 +149,9 @@ def test_create_passenger_request(monkeypatch) -> None:
             "source": payload.source,
             "status": "submitted",
             "request_text": payload.request_text,
+            "source_language": payload.source_language,
+            "translated_text": None,
+            "metadata": payload.metadata,
             "created_at": "2026-02-28T12:00:00+00:00",
             "updated_at": "2026-02-28T12:00:00+00:00",
         }
@@ -169,6 +176,65 @@ def test_create_passenger_request(monkeypatch) -> None:
     assert body["seat_number"] == "14C"
     assert body["category"] == "comfort"
     assert body["status"] == "submitted"
+
+
+def test_create_voice_passenger_request(monkeypatch) -> None:
+    if not passenger_requests_route.MULTIPART_AVAILABLE:
+        pytest.skip("python-multipart is not installed in the test environment")
+
+    flight_id = str(uuid4())
+
+    def fake_create_voice_passenger_request(
+        seat_number,
+        audio_bytes,
+        mime_type,
+        source_language_hint,
+    ):
+        assert seat_number == "14C"
+        assert audio_bytes == b"voice-bytes"
+        assert mime_type == "audio/webm"
+        assert source_language_hint == "es"
+        return {
+            "request_id": str(uuid4()),
+            "flight_id": flight_id,
+            "seat_number": seat_number,
+            "category": "refreshment",
+            "source": "speech",
+            "status": "submitted",
+            "request_text": "Dos aguas, por favor.",
+            "source_language": "es",
+            "translated_text": "Seat requested 2 waters.",
+            "metadata": {
+                "passenger_message": "Dos aguas, por favor.",
+                "action_items": [
+                    {
+                        "item": "aguas",
+                        "quantity": 2,
+                        "normalized_item": "water",
+                    }
+                ],
+            },
+            "created_at": "2026-02-28T12:00:00+00:00",
+            "updated_at": "2026-02-28T12:00:00+00:00",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.passenger_requests.create_voice_passenger_request",
+        fake_create_voice_passenger_request,
+    )
+
+    response = client.post(
+        "/api/v1/seats/14C/voice-requests",
+        files={"audio": ("request.webm", b"voice-bytes", "audio/webm")},
+        data={"source_language": "es"},
+    )
+
+    body = response.json()
+
+    assert response.status_code == 201
+    assert body["source"] == "speech"
+    assert body["source_language"] == "es"
+    assert body["translated_text"] == "Seat requested 2 waters."
 
 
 def test_create_crew_access(monkeypatch) -> None:
@@ -225,6 +291,7 @@ def test_list_crew_members(monkeypatch) -> None:
                     "role": "lead",
                     "device_id": "ipad-01",
                     "assigned_zone": "Forward cabin",
+                    "preferred_language": "fr",
                 }
             ],
             "message": "Crew roster loaded from Supabase.",
@@ -247,7 +314,9 @@ def test_list_crew_members(monkeypatch) -> None:
 def test_list_crew_instructions(monkeypatch) -> None:
     flight_id = str(uuid4())
 
-    def fake_list_crew_instructions():
+    def fake_list_crew_instructions(crew_member_code=None, preferred_language=None):
+        assert crew_member_code == "crew-001"
+        assert preferred_language is None
         return {
             "flight_id": flight_id,
             "flight_number": "AI101",
@@ -255,8 +324,9 @@ def test_list_crew_instructions(monkeypatch) -> None:
                 {
                     "instruction_id": str(uuid4()),
                     "flight_id": flight_id,
-                    "title": "Serve forward cabin refreshments",
-                    "instruction_text": "Deliver water and apples to waiting passengers.",
+                    "title": "Servir les rafraichissements",
+                    "instruction_text": "Apportez de l'eau et des pommes aux passagers.",
+                    "language": "fr",
                     "seat_numbers": ["10A", "12C"],
                     "priority": "medium",
                     "status": "open",
@@ -272,12 +342,13 @@ def test_list_crew_instructions(monkeypatch) -> None:
         fake_list_crew_instructions,
     )
 
-    response = client.get("/api/v1/crew/instructions")
+    response = client.get("/api/v1/crew/instructions?crew_member_code=crew-001")
 
     body = response.json()
 
     assert response.status_code == 200
-    assert body["items"][0]["title"] == "Serve forward cabin refreshments"
+    assert body["items"][0]["title"] == "Servir les rafraichissements"
+    assert body["items"][0]["language"] == "fr"
 
 
 def test_get_management_request_summary(monkeypatch) -> None:

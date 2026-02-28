@@ -79,6 +79,7 @@ create table if not exists public.crew_members (
   ),
   device_id text,
   assigned_zone text,
+  preferred_language text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   unique (flight_id, crew_member_code)

@@ -14,6 +14,8 @@ This repository now includes a FastAPI backend for an airline crew-assistance wo
   - Returns previous requests made from that seat on the active flight.
 - `POST /api/v1/seats/{seat_number}/requests`
   - Creates a new passenger request in Supabase.
+- `POST /api/v1/seats/{seat_number}/voice-requests`
+  - Uploads passenger audio, converts it into structured actions plus a passenger-language message, and stores the request.
 - `POST /api/v1/crew/access`
   - Registers crew iPad access for the active flight.
 - `GET /api/v1/crew/members`
@@ -30,12 +32,13 @@ This repository now includes a FastAPI backend for an airline crew-assistance wo
 - QR-driven seat access scoped by `seat_number`
 - Request history for the current seat
 - New request submission
+- Voice request submission with AI extraction
 
 ### Crew screen
 
 - iPad access handshake
 - Crew roster
-- Instruction feed
+- Instruction feed localized to the crew device language
 
 ### Management screen
 
@@ -99,6 +102,8 @@ Passenger submissions now drive instruction creation automatically:
 - On every `POST /api/v1/seats/{seat_number}/requests`, the backend checks pending requests.
 - If there are 10+ pending requests or the oldest pending request has been waiting 5+ minutes, those requests are bundled into one `crew_instructions` row (max 10 per instruction).
 - The linked requests are marked `being_served`, and the crew devices read those rows via `GET /api/v1/crew/instructions`.
+- Voice requests keep the passenger-facing text in the original language, store an English crew summary in `translated_text`, and preserve structured action items in `metadata.action_items`.
+- Crew devices can pass `crew_member_code` or `preferred_language` to `GET /api/v1/crew/instructions` so the response text is localized for that device.
 
 The same check runs before each `GET /api/v1/crew/instructions`, so the crew device will see a fresh instruction once the criteria are met.
 
@@ -125,3 +130,9 @@ Copy `.env.example` to `.env.local` or export the variables directly. The FastAP
 - `CORS_ORIGINS`
 
 The existing Supabase and GCP variables remain documented for the rest of the repository.
+
+Additional AI-specific variables used by the voice flow:
+
+- `DEFAULT_LANGUAGE`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`

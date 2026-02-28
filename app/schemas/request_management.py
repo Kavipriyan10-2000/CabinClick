@@ -40,6 +40,25 @@ class PassengerRequestCreate(BaseModel):
     )
 
 
+class PassengerVoiceActionItem(BaseModel):
+    item: str = Field(..., min_length=1)
+    quantity: int = Field(default=1, ge=1)
+    notes: str | None = None
+    normalized_item: str | None = Field(
+        default=None,
+        description="Language-neutral item label for backend processing.",
+    )
+
+
+class PassengerVoiceRequestResponse(BaseModel):
+    category: str
+    source_language: str | None = None
+    passenger_message: str
+    crew_summary: str
+    action_items: list[PassengerVoiceActionItem] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class PassengerRequestRecord(BaseModel):
     request_id: UUID
     flight_id: UUID
@@ -48,6 +67,9 @@ class PassengerRequestRecord(BaseModel):
     source: PassengerRequestSource
     status: PassengerRequestStatus = PassengerRequestStatus.submitted
     request_text: str
+    source_language: str | None = None
+    translated_text: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )

@@ -36,7 +36,7 @@ def emit_crew_instruction_if_needed() -> Any | None:
 
     selected = items[:10]
     seat_numbers = sorted({record["seat_number"] for record in selected})
-    instruction_text = "; ".join(record["request_text"] for record in selected)
+    instruction_text = "; ".join(_format_request_for_instruction(record) for record in selected)
     instruction_record = (
         supabase.table("crew_instructions")
         .insert(
@@ -62,3 +62,8 @@ def emit_crew_instruction_if_needed() -> Any | None:
         ).execute()
 
     return instruction
+
+
+def _format_request_for_instruction(record: dict[str, Any]) -> str:
+    summary = record.get("translated_text") or record["request_text"]
+    return f"Seat {record['seat_number']}: {summary}"

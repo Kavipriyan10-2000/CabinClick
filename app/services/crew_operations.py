@@ -10,6 +10,7 @@ from app.schemas.crew_operations import (
 from app.db.supabase import get_supabase_client
 from app.services._flight_context import get_active_flight
 from app.services.instruction_batcher import emit_crew_instruction_if_needed
+from app.services.voice_requests import localize_instruction_for_crew
 
 
 def create_crew_access(payload: CrewAccessRequest) -> CrewAccessResponse:
@@ -34,6 +35,7 @@ def create_crew_access(payload: CrewAccessRequest) -> CrewAccessResponse:
                 {
                     "device_id": payload.device_id,
                     "assigned_zone": payload.assigned_zone,
+                    "preferred_language": payload.preferred_language,
                 }
             )
             .eq("id", member["id"])
@@ -51,6 +53,7 @@ def create_crew_access(payload: CrewAccessRequest) -> CrewAccessResponse:
                     "role": payload.role,
                     "device_id": payload.device_id,
                     "assigned_zone": payload.assigned_zone,
+                    "preferred_language": payload.preferred_language,
                 }
             )
             .execute()
@@ -101,6 +104,7 @@ def list_crew_members() -> CrewMemberListResponse:
             role=record["role"],
             device_id=record["device_id"],
             assigned_zone=record["assigned_zone"],
+            preferred_language=record.get("preferred_language"),
         )
         for record in (response.data or [])
     ]
@@ -112,34 +116,74 @@ def list_crew_members() -> CrewMemberListResponse:
     )
 
 
-def list_crew_instructions() -> CrewInstructionListResponse:
+def list_crew_instructions(
+    *,
+    crew_member_code: str | None = None,
+    preferred_language: str | None = None,
+) -> CrewInstructionListResponse:
     flight = get_active_flight()
+    supabase = get_supabase_client()
     emit_crew_instruction_if_needed()
+    crew_language = preferred_language or _get_crew_member_language(
+        supabase=supabase,
+        flight_id=flight["id"],
+        crew_member_code=crew_member_code,
+    )
     response = (
-        get_supabase_client()
+        supabase
         .table("crew_instructions")
         .select("*")
         .eq("flight_id", flight["id"])
         .order("created_at", desc=True)
         .execute()
     )
-    items = [
-        CrewInstructionRecord(
-            instruction_id=record["id"],
-            flight_id=record["flight_id"],
+    items = []
+    for record in response.data or []:
+        title, instruction_text, language = localize_instruction_for_crew(
             title=record["title"],
             instruction_text=record["instruction_text"],
-            seat_numbers=record["seat_numbers"],
-            priority=record["priority"],
-            status=record["status"],
-            created_at=record["created_at"],
-            updated_at=record["updated_at"],
+            target_language=crew_language,
         )
-        for record in (response.data or [])
-    ]
+        items.append(
+            CrewInstructionRecord(
+                instruction_id=record["id"],
+                flight_id=record["flight_id"],
+                title=title,
+                instruction_text=instruction_text,
+                language=language,
+                seat_numbers=record["seat_numbers"],
+                priority=record["priority"],
+                status=record["status"],
+                created_at=record["created_at"],
+                updated_at=record["updated_at"],
+            )
+        )
     return CrewInstructionListResponse(
         flight_id=flight["id"],
         flight_number=flight["flight_number"],
         items=items,
         message="Crew instructions loaded from Supabase.",
     )
+
+
+def _get_crew_member_language(
+    *,
+    supabase,
+    flight_id: str,
+    crew_member_code: str | None,
+) -> str | None:
+    if not crew_member_code:
+        return None
+
+    response = (
+        supabase.table("crew_members")
+        .select("preferred_language")
+        .eq("flight_id", flight_id)
+        .eq("crew_member_code", crew_member_code)
+        .limit(1)
+        .execute()
+    )
+    records = response.data or []
+    if not records:
+        return None
+    return records[0].get("preferred_language")

@@ -10,6 +10,9 @@ class FakeResponse:
     def __init__(self, data):
         self.data = data
 
+    def execute(self):
+        return self
+
 
 class FakeSupabase:
     def __init__(self, tables):
@@ -105,7 +108,7 @@ def fake_supabase(monkeypatch):
         lambda: client,
     )
     monkeypatch.setattr(
-        "app.services._flight_context.get_active_flight",
+        "app.services.instruction_batcher.get_active_flight",
         lambda: {"id": "flight-1", "flight_number": "AI101"},
     )
 
@@ -119,6 +122,7 @@ def make_request(i, minutes_ago=0):
         "flight_id": "flight-1",
         "seat_number": f"{10+i // 2}A",
         "request_text": f"Request {i}",
+        "status": "submitted",
         "created_at": ts.isoformat(),
     }
 
@@ -132,6 +136,7 @@ def test_instruction_batches_by_size(fake_supabase):
 
     assert instruction is not None
     assert fake_supabase.tables["crew_instructions"]
+    assert "Seat" in fake_supabase.tables["crew_instructions"][0]["instruction_text"]
     assert len(fake_supabase.tables["crew_instruction_requests"]) == 10
     assert all(
         record["status"] == "being_served"
@@ -150,4 +155,3 @@ def test_instruction_batches_by_timer(fake_supabase):
     assert instruction is not None
     assert fake_supabase.tables["crew_instructions"]
     assert len(fake_supabase.tables["crew_instruction_requests"]) == 3
-
