@@ -22,6 +22,8 @@ This repository now includes a FastAPI backend for an airline crew-assistance wo
   - Returns the crew roster for the active flight.
 - `GET /api/v1/crew/instructions`
   - Returns the instruction feed for the active flight.
+- `GET /api/v1/crew/request-queue`
+  - Returns submitted passenger requests waiting in the crew queue.
 - `GET /api/v1/management/requests/summary`
   - Returns a management summary derived from Supabase views.
 

@@ -353,6 +353,74 @@ def test_list_crew_instructions(monkeypatch) -> None:
     assert body["items"][0]["language"] == "de"
 
 
+def test_list_crew_request_queue(monkeypatch) -> None:
+    flight_id = str(uuid4())
+
+    def fake_list_queued_passenger_requests(
+        crew_member_code=None,
+        preferred_language=None,
+    ):
+        assert crew_member_code == "crew-001"
+        assert preferred_language == "de"
+        return {
+            "flight_id": flight_id,
+            "flight_number": "AI101",
+            "items": [
+                {
+                    "request_id": str(uuid4()),
+                    "flight_id": flight_id,
+                    "seat_number": "14C",
+                    "category": "refreshment",
+                    "request_text": "Zwei Wasser, bitte.",
+                    "display_text": "Zwei Wasser, bitte.",
+                    "language": "de",
+                    "created_at": "2026-02-28T12:00:00+00:00",
+                }
+            ],
+            "message": "Queued passenger requests loaded from Supabase.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.list_queued_passenger_requests",
+        fake_list_queued_passenger_requests,
+    )
+
+    response = client.get(
+        "/api/v1/crew/request-queue?crew_member_code=crew-001&preferred_language=de"
+    )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["items"][0]["seat_number"] == "14C"
+    assert body["items"][0]["display_text"] == "Zwei Wasser, bitte."
+
+
+def test_complete_crew_instruction(monkeypatch) -> None:
+    instruction_id = str(uuid4())
+
+    def fake_complete_crew_instruction(*, instruction_id):
+        return {
+            "instruction_id": instruction_id,
+            "status": "completed",
+            "updated_at": "2026-02-28T12:10:00+00:00",
+            "message": "Crew instruction marked as completed.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.complete_crew_instruction",
+        fake_complete_crew_instruction,
+    )
+
+    response = client.patch(f"/api/v1/crew/instructions/{instruction_id}/complete")
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["instruction_id"] == instruction_id
+    assert body["status"] == "completed"
+
+
 def test_get_management_request_summary(monkeypatch) -> None:
     def fake_get_request_summary():
         return {

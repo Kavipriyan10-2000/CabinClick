@@ -122,6 +122,15 @@ def make_request(i, minutes_ago=0):
         "flight_id": "flight-1",
         "seat_number": f"{10+i // 2}A",
         "request_text": f"Request {i}",
+        "metadata": {
+            "action_items": [
+                {
+                    "item": "Water",
+                    "normalized_item": "water",
+                    "quantity": 2 if i % 2 == 0 else 1,
+                }
+            ]
+        },
         "status": "submitted",
         "created_at": ts.isoformat(),
     }
@@ -136,6 +145,8 @@ def test_instruction_batches_by_size(fake_supabase):
 
     assert instruction is not None
     assert fake_supabase.tables["crew_instructions"]
+    assert "Totals: 15 water" in fake_supabase.tables["crew_instructions"][0]["instruction_text"]
+    assert "Serve 10 request(s) - Totals: 15 water" == fake_supabase.tables["crew_instructions"][0]["title"]
     assert "Seat" in fake_supabase.tables["crew_instructions"][0]["instruction_text"]
     assert len(fake_supabase.tables["crew_instruction_requests"]) == 10
     assert all(
@@ -154,4 +165,5 @@ def test_instruction_batches_by_timer(fake_supabase):
 
     assert instruction is not None
     assert fake_supabase.tables["crew_instructions"]
+    assert "Totals:" in fake_supabase.tables["crew_instructions"][0]["instruction_text"]
     assert len(fake_supabase.tables["crew_instruction_requests"]) == 3

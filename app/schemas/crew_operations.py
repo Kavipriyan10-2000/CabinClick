@@ -91,3 +91,32 @@ class CrewInstructionListResponse(BaseModel):
     flight_number: str
     items: list[CrewInstructionRecord] = Field(default_factory=list)
     message: str
+
+
+class CrewInstructionCompleteResponse(BaseModel):
+    instruction_id: UUID
+    status: CrewInstructionStatus = CrewInstructionStatus.completed
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+    message: str
+
+
+class CrewQueueRequestRecord(BaseModel):
+    request_id: UUID
+    flight_id: UUID
+    seat_number: str
+    category: str
+    request_text: str
+    display_text: str
+    language: LanguageCode = LanguageCode.en
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
+class CrewQueueRequestListResponse(BaseModel):
+    flight_id: UUID
+    flight_number: str
+    items: list[CrewQueueRequestRecord] = Field(default_factory=list)
+    message: str
