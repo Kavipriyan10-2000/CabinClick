@@ -7,10 +7,15 @@ import { CabinHeader } from "@/components/cabin-header"
 
 type CustomRequestProps = {
   onBack: () => void
-  onConfirm: () => void
+  onConfirm: (requestText: string) => void
+  isSubmitting?: boolean
 }
 
-export function CustomRequest({ onBack, onConfirm }: CustomRequestProps) {
+export function CustomRequest({
+  onBack,
+  onConfirm,
+  isSubmitting = false,
+}: CustomRequestProps) {
   const { t, locale } = useLanguage()
   const [requestText, setRequestText] = useState("")
   const [showInterpreted, setShowInterpreted] = useState(false)
@@ -92,10 +97,11 @@ export function CustomRequest({ onBack, onConfirm }: CustomRequestProps) {
             </div>
             <p className="text-cabin-navy text-sm leading-relaxed mb-4">{interpretedText}</p>
             <button
-              onClick={onConfirm}
+              onClick={() => onConfirm(requestText.trim())}
+              disabled={isSubmitting}
               className="w-full bg-cabin-navy text-card font-semibold py-3.5 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
-              {t.confirmRequest}
+              {isSubmitting ? "Submitting..." : t.confirmRequest}
               <Send className="w-4 h-4" />
             </button>
           </div>
@@ -105,10 +111,10 @@ export function CustomRequest({ onBack, onConfirm }: CustomRequestProps) {
         {!showInterpreted && (
           <button
             onClick={handleSubmit}
-            disabled={!requestText.trim()}
+            disabled={!requestText.trim() || isSubmitting}
             className="w-full bg-cabin-navy text-card font-semibold py-3.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed mb-4 flex items-center justify-center gap-2"
           >
-            {t.sendRequest}
+            {isSubmitting ? "Submitting..." : t.sendRequest}
             <Send className="w-4 h-4" />
           </button>
         )}

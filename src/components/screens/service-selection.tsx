@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, Check, ShoppingBag } from "lucide-react"
+import { ArrowRight, Check } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { CabinHeader } from "@/components/cabin-header"
 import { SERVICE_ITEMS } from "@/lib/service-items"
@@ -11,6 +11,7 @@ type ServiceSelectionProps = {
   onConfirm: (item: string) => void
   onItemDetail: (item: string) => void
   category?: string
+  isSubmitting?: boolean
 }
 
 const CATEGORIES = ["drinks", "food", "comfort", "hygiene", "practical", "medical"] as const
@@ -20,6 +21,7 @@ export function ServiceSelection({
   onConfirm,
   onItemDetail,
   category = "drinks",
+  isSubmitting = false,
 }: ServiceSelectionProps) {
   const { t } = useLanguage()
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
@@ -112,10 +114,10 @@ export function ServiceSelection({
       <div className="sticky bottom-0 px-4 pb-4 pt-2 bg-gradient-to-t from-background to-transparent">
         <button
           onClick={() => selectedItem && onConfirm(selectedItem)}
-          disabled={!selectedItem}
+          disabled={!selectedItem || isSubmitting}
           className="w-full max-w-2xl mx-auto bg-cabin-gold text-cabin-navy font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {t.confirmSelection}
+          {isSubmitting ? "Submitting..." : t.confirmSelection}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

@@ -8,6 +8,8 @@ import Image from "next/image"
 type SnackDetailProps = {
   onBack: () => void
   onConfirm: () => void
+  itemName?: string
+  isSubmitting?: boolean
 }
 
 const ingredients = [
@@ -19,7 +21,12 @@ const ingredients = [
 
 const allergens = ["Gluten", "Dairy", "Nuts"]
 
-export function SnackDetail({ onBack, onConfirm }: SnackDetailProps) {
+export function SnackDetail({
+  onBack,
+  onConfirm,
+  itemName,
+  isSubmitting = false,
+}: SnackDetailProps) {
   const { t } = useLanguage()
 
   return (
@@ -27,7 +34,9 @@ export function SnackDetail({ onBack, onConfirm }: SnackDetailProps) {
       <CabinHeader showBack onBack={onBack} showUser />
 
       <main className="flex-1 px-4 py-6 max-w-2xl mx-auto w-full">
-        <h1 className="text-3xl font-bold text-cabin-navy mb-2">{t.snack}</h1>
+        <h1 className="text-3xl font-bold text-cabin-navy mb-2">
+          {itemName || t.snack}
+        </h1>
         <p className="text-muted-foreground text-sm leading-relaxed mb-6 max-w-md">
           {t.snackDescription}
         </p>
@@ -116,9 +125,10 @@ export function SnackDetail({ onBack, onConfirm }: SnackDetailProps) {
 
             <button
               onClick={onConfirm}
+              disabled={isSubmitting}
               className="w-full mt-6 bg-cabin-navy text-[#FFFFFF] font-semibold py-4 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity active:scale-[0.98]"
             >
-              {t.confirmRequest}
+              {isSubmitting ? "Submitting..." : t.confirmRequest}
               <Check className="w-5 h-5" />
             </button>
           </div>

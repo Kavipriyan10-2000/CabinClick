@@ -7,15 +7,26 @@ import { useLanguage } from "@/lib/language-context"
 type SOSFlowProps = {
   onCancel: () => void
   onComplete: () => void
+  onConfirm: () => Promise<boolean | void> | boolean | void
   seat?: string
+  isSubmitting?: boolean
 }
 
-export function SOSFlow({ onCancel, onComplete, seat = "14A" }: SOSFlowProps) {
+export function SOSFlow({
+  onCancel,
+  onComplete,
+  onConfirm,
+  seat = "14A",
+  isSubmitting = false,
+}: SOSFlowProps) {
   const { t } = useLanguage()
   const [confirmed, setConfirmed] = useState(false)
 
-  function handleConfirm() {
-    setConfirmed(true)
+  async function handleConfirm() {
+    const success = await onConfirm()
+    if (success !== false) {
+      setConfirmed(true)
+    }
   }
 
   if (confirmed) {
@@ -72,10 +83,11 @@ export function SOSFlow({ onCancel, onComplete, seat = "14A" }: SOSFlowProps) {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleConfirm}
+            disabled={isSubmitting}
             className="w-full bg-cabin-red text-[#FFFFFF] font-bold py-3.5 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
             <AlertTriangle className="w-5 h-5" />
-            {t.sosConfirm}
+            {isSubmitting ? "Sending..." : t.sosConfirm}
           </button>
           <button
             onClick={onCancel}
