@@ -1,41 +1,27 @@
 # Cabin Crew Dispatch Backend
 
-This repository now includes a starter FastAPI backend for an airline crew-assistance workflow. The backend is intentionally shallow so the frontend can integrate against stable HTTP contracts while the real QR validation, translation, request handling, and device delivery logic is added later.
+This repository now includes a FastAPI backend for an airline crew-assistance workflow, wired to a Supabase schema for the MVP flows.
 
 ## Implemented API surface
 
 - `GET /api/v1/health`
   - Simple health check for local development and deployment probes.
+- `POST /api/v1/flights/register`
+  - Registers the active flight for the current app session.
 - `POST /api/v1/seats/{seat_number}/access`
-  - Passenger QR-entry route that opens the seat-specific experience without a traditional login flow.
-- `GET /api/v1/seats/{seat_number}/requests/new`
-  - Dummy route for the "new request" button that currently returns `apple`, `water`, and a custom text field.
+  - Passenger QR-entry route that stores seat access for the active flight.
 - `GET /api/v1/seats/{seat_number}/requests`
-  - Returns previous requests made from that seat.
+  - Returns previous requests made from that seat on the active flight.
 - `POST /api/v1/seats/{seat_number}/requests`
-  - Creates a new passenger request from the phone screen.
-- `POST /api/v1/passenger-requests/interpret`
-  - Accepts a passenger transcript and returns a queued placeholder response for future translation and action extraction.
-- `POST /api/v1/crew/broadcasts`
-  - Accepts a structured message and device targets, then returns a queued placeholder response for future crew-device delivery.
+  - Creates a new passenger request in Supabase.
+- `POST /api/v1/crew/access`
+  - Registers crew iPad access for the active flight.
 - `GET /api/v1/crew/members`
-  - Returns the current crew roster.
-- `GET /api/v1/crew/requests`
-  - Returns the crew-facing feed of passenger requests.
-- `GET /api/v1/crew/queue/current`
-  - Returns the current `request-in-progress` object that is collecting passenger instructions.
-- `POST /api/v1/crew/queue/current/tray-items`
-  - Adds selected items to the crew member's tray inside the active `request-in-progress` object.
-- `POST /api/v1/crew/queue/current/dispatch`
-  - Marks the active request object as `being_served` and returns the next request object for remaining and new instructions.
-- `PATCH /api/v1/crew/requests/{request_id}/status`
-  - Placeholder route for crew workflow actions such as triaged, in progress, or completed.
+  - Returns the crew roster for the active flight.
 - `GET /api/v1/crew/instructions`
-  - Returns the crew-facing instruction feed derived from passenger requests.
-- `POST /api/v1/crew/instructions`
-  - Creates an instruction that can be assigned to crew members or devices.
-- `PATCH /api/v1/crew/instructions/{instruction_id}/status`
-  - Placeholder route for instruction acknowledgement and completion updates.
+  - Returns the instruction feed for the active flight.
+- `GET /api/v1/management/requests/summary`
+  - Returns a management summary derived from Supabase views.
 
 ## Screen architecture
 
@@ -44,31 +30,29 @@ This repository now includes a starter FastAPI backend for an airline crew-assis
 - QR-driven seat access scoped by `seat_number`
 - Request history for the current seat
 - New request submission
-- Separate speech interpretation endpoint for later AI or NLP integration
 
 ### Crew screen
 
-- Flight crew roster
-- Flight request feed
-- Current request-in-progress queue object
-- Add selected items to tray
-- Dispatch the tray and roll remaining/new items into the next object
+- iPad access handshake
+- Crew roster
 - Instruction feed
-- Instruction creation and status updates
-- Request status updates
+
+### Management screen
+
+- Request summary across the active flight
 
 ## Project structure
 
 - `app/main.py`
   - FastAPI application entry point.
 - `app/api/routes/`
-  - Route handlers for health, passenger seat access, requests, crew operations, and broadcasts.
+  - Route handlers for health, flights, passenger access, crew operations, and management.
 - `app/schemas/`
   - Request and response models shared with the frontend.
 - `app/services/`
-  - Stub business-logic layer where the real implementation can be added later.
+  - Supabase-backed service layer for the MVP routes.
 - `tests/test_api.py`
-  - Basic contract tests for the starter routes.
+  - Route contract tests that patch the service layer.
 
 ## Run locally
 
@@ -91,49 +75,45 @@ Current behavior:
 - If no service-role key is set, it falls back to `SUPABASE_ANON_KEY`.
 - Your current `.env.local` already contains the project URL, publishable key, and anon key.
 
-Recommended next step:
+For the hackathon MVP, the migration grants table access to `anon`, `authenticated`, and `service_role` so the backend can function even if you only have the anon key. `SUPABASE_SERVICE_ROLE_KEY` is still the safer backend option.
 
-- Ask your teammate for `SUPABASE_SERVICE_ROLE_KEY` so the backend can safely perform server-side writes without depending on public-key access rules.
+## Supabase Schema
+
+The airline MVP schema now lives in [20260228170000_airline_mvp_schema.sql](/Users/akshitbhatia/PycharmProjects/CabinClick/supabase/migrations/20260228170000_airline_mvp_schema.sql). It creates:
+
+- `flights`
+- `seat_access_sessions`
+- `passenger_requests`
+- `crew_members`
+- `crew_access_sessions`
+- `crew_instructions`
+- `crew_instruction_requests`
+- `management_request_summary` and `management_request_category_summary` views
+
+The old cabin/bootstrap tables are explicitly dropped in that migration because they do not belong to this project anymore.
+
+## Auto-Instructions
+
+Passenger submissions now drive instruction creation automatically:
+
+- On every `POST /api/v1/seats/{seat_number}/requests`, the backend checks pending requests.
+- If there are 10+ pending requests or the oldest pending request has been waiting 5+ minutes, those requests are bundled into one `crew_instructions` row (max 10 per instruction).
+- The linked requests are marked `being_served`, and the crew devices read those rows via `GET /api/v1/crew/instructions`.
+
+The same check runs before each `GET /api/v1/crew/instructions`, so the crew device will see a fresh instruction once the criteria are met.
 
 ## Testing In Swagger Docs
 
-After starting the server and opening `/docs`, test the queue flow in this order:
+After starting the server and opening `/docs`, test the MVP flow in this order:
 
-1. Open `GET /api/v1/crew/queue/current` and click `Try it out`, then `Execute`.
-2. Open `POST /api/v1/crew/queue/current/tray-items` and send a body like:
-
-```json
-{
-  "crew_member_id": "crew-002",
-  "selections": [
-    {
-      "item_name": "water",
-      "quantity": 2,
-      "seat_numbers": ["10A", "12C"]
-    },
-    {
-      "item_name": "apple",
-      "quantity": 1,
-      "seat_numbers": ["12C"]
-    }
-  ]
-}
-```
-
-3. Open `POST /api/v1/crew/queue/current/dispatch` and send:
-
-```json
-{
-  "crew_member_id": "crew-002",
-  "note": "Leaving galley with current tray."
-}
-```
-
-The dispatch response will show:
-
-- `served_request` with status `being_served`
-- `next_request` with status `collecting`
-- remaining and newly arrived items inside `next_request.pending_items`
+1. `POST /api/v1/flights/register`
+2. `POST /api/v1/seats/14C/access`
+3. `POST /api/v1/seats/14C/requests`
+4. `GET /api/v1/seats/14C/requests`
+5. `POST /api/v1/crew/access`
+6. `GET /api/v1/crew/members`
+7. `GET /api/v1/crew/instructions`
+8. `GET /api/v1/management/requests/summary`
 
 ## Environment
 

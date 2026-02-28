@@ -1,255 +1,145 @@
-from uuid import uuid4
-
 from app.schemas.crew_operations import (
-    CrewQueueAddToTrayRequest,
-    CrewQueueAddToTrayResponse,
-    CrewQueueDispatchRequest,
-    CrewQueueDispatchResponse,
-    CrewQueueItem,
-    CrewQueueRequestRecord,
-    CrewQueueStateResponse,
-    CrewQueueStatus,
-    CrewInstructionCreate,
+    CrewAccessRequest,
+    CrewAccessResponse,
     CrewInstructionListResponse,
     CrewInstructionRecord,
-    CrewInstructionStatusUpdate,
-    CrewInstructionStatusUpdateResponse,
     CrewMemberListResponse,
     CrewMemberRole,
     CrewMemberSummary,
-    CrewRequestFeedResponse,
-    CrewRequestStatusUpdate,
-    CrewRequestStatusUpdateResponse,
 )
+from app.db.supabase import get_supabase_client
+from app.services._flight_context import get_active_flight
+from app.services.instruction_batcher import emit_crew_instruction_if_needed
 
 
-def _sample_pending_queue_items() -> list[CrewQueueItem]:
-    return [
-        CrewQueueItem(
-            item_name="water",
-            quantity=3,
-            seat_numbers=["10A", "12C", "15D"],
-            request_ids=[uuid4(), uuid4(), uuid4()],
-            added_to_tray=False,
-        ),
-        CrewQueueItem(
-            item_name="apple",
-            quantity=2,
-            seat_numbers=["12C", "18A"],
-            request_ids=[uuid4(), uuid4()],
-            added_to_tray=False,
-        ),
-        CrewQueueItem(
-            item_name="custom assistance",
-            quantity=1,
-            seat_numbers=["14C"],
-            request_ids=[uuid4()],
-            added_to_tray=False,
-        ),
-    ]
+def create_crew_access(payload: CrewAccessRequest) -> CrewAccessResponse:
+    flight = get_active_flight()
+    supabase = get_supabase_client()
 
-
-def get_active_queue_request() -> CrewQueueStateResponse:
-    return CrewQueueStateResponse(
-        active_request=CrewQueueRequestRecord(
-            queue_request_id=uuid4(),
-            status=CrewQueueStatus.collecting,
-            pending_items=_sample_pending_queue_items(),
-        ),
-        message=(
-            "Current request-in-progress placeholder. Incoming passenger "
-            "requests are grouped here until the crew member dispatches."
-        ),
+    member_lookup = (
+        supabase.table("crew_members")
+        .select("*")
+        .eq("flight_id", flight["id"])
+        .eq("crew_member_code", payload.crew_member_code)
+        .limit(1)
+        .execute()
     )
+    existing_members = member_lookup.data or []
 
-
-def add_items_to_queue_tray(
-    payload: CrewQueueAddToTrayRequest,
-) -> CrewQueueAddToTrayResponse:
-    tray_items = [
-        CrewQueueItem(
-            item_name=selection.item_name,
-            quantity=selection.quantity,
-            seat_numbers=selection.seat_numbers,
-            request_ids=selection.request_ids,
-            added_to_tray=True,
+    if existing_members:
+        member = existing_members[0]
+        member_update = (
+            supabase.table("crew_members")
+            .update(
+                {
+                    "device_id": payload.device_id,
+                    "assigned_zone": payload.assigned_zone,
+                }
+            )
+            .eq("id", member["id"])
+            .execute()
         )
-        for selection in payload.selections
-    ]
+        member = member_update.data[0]
+    else:
+        member_insert = (
+            supabase.table("crew_members")
+            .insert(
+                {
+                    "flight_id": flight["id"],
+                    "crew_member_code": payload.crew_member_code,
+                    "full_name": payload.full_name or payload.crew_member_code,
+                    "role": payload.role,
+                    "device_id": payload.device_id,
+                    "assigned_zone": payload.assigned_zone,
+                }
+            )
+            .execute()
+        )
+        member = member_insert.data[0]
 
-    pending_items = [
-        CrewQueueItem(
-            item_name="water",
-            quantity=1,
-            seat_numbers=["15D"],
-            request_ids=[uuid4()],
-            added_to_tray=False,
-        ),
-        CrewQueueItem(
-            item_name="custom assistance",
-            quantity=1,
-            seat_numbers=["14C"],
-            request_ids=[uuid4()],
-            added_to_tray=False,
-        ),
-    ]
-
-    return CrewQueueAddToTrayResponse(
-        active_request=CrewQueueRequestRecord(
-            queue_request_id=uuid4(),
-            status=CrewQueueStatus.collecting,
-            crew_member_id=payload.crew_member_id,
-            tray_items=tray_items,
-            pending_items=pending_items,
-        ),
-        message=(
-            "Selected items were added to the request-in-progress tray. "
-            "Unselected instructions remain pending."
-        ),
+    access_insert = (
+        supabase.table("crew_access_sessions")
+        .insert(
+            {
+                "flight_id": flight["id"],
+                "crew_member_id": member["id"],
+                "device_id": payload.device_id,
+                "status": "active",
+            }
+        )
+        .execute()
     )
+    access_record = access_insert.data[0]
 
-
-def dispatch_queue_request(
-    payload: CrewQueueDispatchRequest,
-) -> CrewQueueDispatchResponse:
-    served_request = CrewQueueRequestRecord(
-        queue_request_id=uuid4(),
-        status=CrewQueueStatus.being_served,
-        crew_member_id=payload.crew_member_id,
-        tray_items=[
-            CrewQueueItem(
-                item_name="water",
-                quantity=2,
-                seat_numbers=["10A", "12C"],
-                request_ids=[uuid4(), uuid4()],
-                added_to_tray=True,
-            ),
-            CrewQueueItem(
-                item_name="apple",
-                quantity=1,
-                seat_numbers=["12C"],
-                request_ids=[uuid4()],
-                added_to_tray=True,
-            ),
-        ],
-        pending_items=[],
-    )
-
-    next_request = CrewQueueRequestRecord(
-        queue_request_id=uuid4(),
-        status=CrewQueueStatus.collecting,
-        pending_items=[
-            CrewQueueItem(
-                item_name="water",
-                quantity=1,
-                seat_numbers=["15D"],
-                request_ids=[uuid4()],
-                added_to_tray=False,
-            ),
-            CrewQueueItem(
-                item_name="custom assistance",
-                quantity=1,
-                seat_numbers=["14C"],
-                request_ids=[uuid4()],
-                added_to_tray=False,
-            ),
-            CrewQueueItem(
-                item_name="juice",
-                quantity=1,
-                seat_numbers=["20B"],
-                request_ids=[uuid4()],
-                added_to_tray=False,
-            ),
-        ],
-    )
-
-    return CrewQueueDispatchResponse(
-        served_request=served_request,
-        next_request=next_request,
-        message=(
-            "The current request-in-progress was marked being_served. "
-            "Remaining and new instructions were moved into the next request."
-        ),
+    return CrewAccessResponse(
+        access_id=access_record["id"],
+        flight_id=flight["id"],
+        flight_number=flight["flight_number"],
+        crew_member_id=member["id"],
+        crew_member_code=member["crew_member_code"],
+        device_id=access_record["device_id"],
+        status=access_record["status"],
+        created_at=access_record["created_at"],
+        message="Crew device access recorded for the active flight.",
     )
 
 
 def list_crew_members() -> CrewMemberListResponse:
+    flight = get_active_flight()
+    response = (
+        get_supabase_client()
+        .table("crew_members")
+        .select("*")
+        .eq("flight_id", flight["id"])
+        .order("created_at")
+        .execute()
+    )
+    members = [
+        CrewMemberSummary(
+            crew_member_id=record["crew_member_code"],
+            full_name=record["full_name"],
+            role=record["role"],
+            device_id=record["device_id"],
+            assigned_zone=record["assigned_zone"],
+        )
+        for record in (response.data or [])
+    ]
     return CrewMemberListResponse(
-        members=[
-            CrewMemberSummary(
-                crew_member_id="crew-001",
-                full_name="Aisha Khan",
-                role=CrewMemberRole.lead,
-                device_id="crew-device-1",
-                assigned_zone="Forward cabin",
-            ),
-            CrewMemberSummary(
-                crew_member_id="crew-002",
-                full_name="Daniel Perez",
-                role=CrewMemberRole.attendant,
-                device_id="crew-device-2",
-                assigned_zone="Mid cabin",
-            ),
-        ],
-        message=(
-            "Crew roster placeholder. Real flight assignment data will be "
-            "connected later."
-        ),
-    )
-
-
-def list_requests_for_crew() -> CrewRequestFeedResponse:
-    return CrewRequestFeedResponse(
-        message=(
-            "Crew request feed placeholder. Request aggregation will be "
-            "connected in a later implementation."
-        ),
-    )
-
-
-def update_passenger_request_status(
-    request_id: str,
-    payload: CrewRequestStatusUpdate,
-) -> CrewRequestStatusUpdateResponse:
-    return CrewRequestStatusUpdateResponse(
-        request_id=request_id,
-        status=payload.status,
-        message=(
-            "Passenger request status accepted. Persistence and workflow "
-            "transitions will be connected later."
-        ),
+        flight_id=flight["id"],
+        flight_number=flight["flight_number"],
+        members=members,
+        message="Crew roster loaded from Supabase.",
     )
 
 
 def list_crew_instructions() -> CrewInstructionListResponse:
+    flight = get_active_flight()
+    emit_crew_instruction_if_needed()
+    response = (
+        get_supabase_client()
+        .table("crew_instructions")
+        .select("*")
+        .eq("flight_id", flight["id"])
+        .order("created_at", desc=True)
+        .execute()
+    )
+    items = [
+        CrewInstructionRecord(
+            instruction_id=record["id"],
+            flight_id=record["flight_id"],
+            title=record["title"],
+            instruction_text=record["instruction_text"],
+            seat_numbers=record["seat_numbers"],
+            priority=record["priority"],
+            status=record["status"],
+            created_at=record["created_at"],
+            updated_at=record["updated_at"],
+        )
+        for record in (response.data or [])
+    ]
     return CrewInstructionListResponse(
-        message=(
-            "Crew instruction feed placeholder. Instruction storage and "
-            "assignment will be connected in a later implementation."
-        ),
-    )
-
-
-def create_crew_instruction(payload: CrewInstructionCreate) -> CrewInstructionRecord:
-    return CrewInstructionRecord(
-        instruction_id=uuid4(),
-        title=payload.title,
-        instruction_text=payload.instruction_text,
-        request_ids=payload.request_ids,
-        assignee_ids=payload.assignee_ids,
-        priority=payload.priority,
-    )
-
-
-def update_crew_instruction_status(
-    instruction_id: str,
-    payload: CrewInstructionStatusUpdate,
-) -> CrewInstructionStatusUpdateResponse:
-    return CrewInstructionStatusUpdateResponse(
-        instruction_id=instruction_id,
-        status=payload.status,
-        message=(
-            "Crew instruction status accepted. Persistence and delivery "
-            "acknowledgements will be connected later."
-        ),
+        flight_id=flight["id"],
+        flight_number=flight["flight_number"],
+        items=items,
+        message="Crew instructions loaded from Supabase.",
     )

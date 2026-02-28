@@ -5,8 +5,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.schemas.passenger_requests import ExtractedAction
-
 
 class PassengerRequestSource(str, Enum):
     typed = "typed"
@@ -16,9 +14,9 @@ class PassengerRequestSource(str, Enum):
 
 class PassengerRequestStatus(str, Enum):
     submitted = "submitted"
-    triaged = "triaged"
-    in_progress = "in_progress"
+    being_served = "being_served"
     completed = "completed"
+    cancelled = "cancelled"
 
 
 class PassengerRequestCreate(BaseModel):
@@ -42,31 +40,14 @@ class PassengerRequestCreate(BaseModel):
     )
 
 
-class PassengerNewRequestDraftResponse(BaseModel):
-    seat_number: str
-    selected_items: list[str] = Field(
-        default_factory=list,
-        description="Dummy selections returned when the new request screen opens.",
-    )
-    custom_text: str = Field(
-        ...,
-        description="Dummy custom note returned for the first UI integration.",
-    )
-    message: str
-
-
 class PassengerRequestRecord(BaseModel):
     request_id: UUID
+    flight_id: UUID
     seat_number: str
     category: str
     source: PassengerRequestSource
     status: PassengerRequestStatus = PassengerRequestStatus.submitted
     request_text: str
-    translated_text: str | None = Field(
-        default=None,
-        description="Future normalized or translated request text.",
-    )
-    extracted_actions: list[ExtractedAction] = Field(default_factory=list)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
@@ -76,6 +57,7 @@ class PassengerRequestRecord(BaseModel):
 
 
 class PassengerRequestListResponse(BaseModel):
+    flight_id: UUID
     seat_number: str
     items: list[PassengerRequestRecord] = Field(default_factory=list)
     message: str

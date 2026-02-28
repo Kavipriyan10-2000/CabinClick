@@ -1,8 +1,22 @@
+import pytest
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def disable_instruction_batcher(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.passenger_requests.emit_crew_instruction_if_needed",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "app.services.crew_operations.emit_crew_instruction_if_needed",
+        lambda: None,
+    )
 
 
 def test_health_check() -> None:
@@ -12,7 +26,59 @@ def test_health_check() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_register_flight(monkeypatch) -> None:
+    def fake_register_flight(payload):
+        return {
+            "flight_id": str(uuid4()),
+            "flight_number": payload.flight_number,
+            "origin": payload.origin,
+            "destination": payload.destination,
+            "departure_date": payload.departure_date.isoformat(),
+            "status": "active",
+            "created_at": "2026-02-28T12:00:00+00:00",
+            "message": "Flight registered for the current app session.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.flight_registration.register_flight",
+        fake_register_flight,
+    )
+
+    response = client.post(
+        "/api/v1/flights/register",
+        json={
+            "flight_number": "AI101",
+            "origin": "DEL",
+            "destination": "LHR",
+            "departure_date": "2026-03-01",
+        },
+    )
+
+    body = response.json()
+
+    assert response.status_code == 201
+    assert body["flight_number"] == "AI101"
+    assert body["status"] == "active"
+
+
 def test_create_passenger_seat_access() -> None:
+    def fake_grant_seat_access(seat_number, payload):
+        return {
+            "access_id": str(uuid4()),
+            "status": "active",
+            "created_at": "2026-02-28T12:00:00+00:00",
+            "flight_number": "AI101",
+            "seat_number": seat_number,
+            "cabin_section": None,
+            "available_actions": ["create_request", "view_requests"],
+            "message": "Seat access accepted and stored for the active flight.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.passenger_access.grant_seat_access",
+        fake_grant_seat_access,
+    )
+
     response = client.post(
         "/api/v1/seats/14C/access",
         json={
@@ -26,31 +92,68 @@ def test_create_passenger_seat_access() -> None:
 
     assert response.status_code == 201
     assert body["status"] == "active"
+    assert body["flight_number"] == "AI101"
     assert body["seat_number"] == "14C"
 
 
-def test_get_new_passenger_request_draft() -> None:
-    response = client.get("/api/v1/seats/14C/requests/new")
+def test_list_passenger_requests(monkeypatch) -> None:
+    flight_id = str(uuid4())
 
-    body = response.json()
+    def fake_list_passenger_requests(seat_number):
+        return {
+            "flight_id": flight_id,
+            "seat_number": seat_number,
+            "items": [
+                {
+                    "request_id": str(uuid4()),
+                    "flight_id": flight_id,
+                    "seat_number": seat_number,
+                    "category": "refreshment",
+                    "source": "typed",
+                    "status": "being_served",
+                    "request_text": "Water please",
+                    "created_at": "2026-02-28T12:00:00+00:00",
+                    "updated_at": "2026-02-28T12:05:00+00:00",
+                }
+            ],
+            "message": "Passenger request history loaded from Supabase.",
+        }
 
-    assert response.status_code == 200
-    assert body["seat_number"] == "14C"
-    assert body["selected_items"] == ["apple", "water"]
-    assert body["custom_text"] == "Passenger custom text"
+    monkeypatch.setattr(
+        "app.api.routes.passenger_requests.list_passenger_requests",
+        fake_list_passenger_requests,
+    )
 
-
-def test_list_passenger_requests() -> None:
     response = client.get("/api/v1/seats/14C/requests")
 
     body = response.json()
 
     assert response.status_code == 200
     assert body["seat_number"] == "14C"
-    assert body["items"] == []
+    assert body["items"][0]["status"] == "being_served"
 
 
-def test_create_passenger_request() -> None:
+def test_create_passenger_request(monkeypatch) -> None:
+    flight_id = str(uuid4())
+
+    def fake_create_passenger_request(seat_number, payload):
+        return {
+            "request_id": str(uuid4()),
+            "flight_id": flight_id,
+            "seat_number": seat_number,
+            "category": payload.category,
+            "source": payload.source,
+            "status": "submitted",
+            "request_text": payload.request_text,
+            "created_at": "2026-02-28T12:00:00+00:00",
+            "updated_at": "2026-02-28T12:00:00+00:00",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.passenger_requests.create_passenger_request",
+        fake_create_passenger_request,
+    )
+
     response = client.post(
         "/api/v1/seats/14C/requests",
         json={
@@ -68,123 +171,139 @@ def test_create_passenger_request() -> None:
     assert body["status"] == "submitted"
 
 
-def test_interpret_passenger_request() -> None:
-    response = client.post(
-        "/api/v1/passenger-requests/interpret",
-        json={
-            "passenger_id": "pax_184",
-            "seat_number": "14C",
-            "transcript": "I need water and a blanket.",
-            "source_language": "en",
-            "cabin_section": "economy",
-        },
+def test_create_crew_access(monkeypatch) -> None:
+    flight_id = str(uuid4())
+    crew_member_id = str(uuid4())
+
+    def fake_create_crew_access(payload):
+        return {
+            "access_id": str(uuid4()),
+            "flight_id": flight_id,
+            "flight_number": "AI101",
+            "crew_member_id": crew_member_id,
+            "crew_member_code": payload.crew_member_code,
+            "device_id": payload.device_id,
+            "status": "active",
+            "created_at": "2026-02-28T12:00:00+00:00",
+            "message": "Crew device access recorded for the active flight.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.create_crew_access",
+        fake_create_crew_access,
     )
 
-    body = response.json()
-
-    assert response.status_code == 202
-    assert body["status"] == "queued"
-    assert body["original_transcript"] == "I need water and a blanket."
-    assert body["translated_text"] is None
-    assert body["extracted_actions"] == []
-
-
-def test_queue_crew_broadcast() -> None:
     response = client.post(
-        "/api/v1/crew/broadcasts",
+        "/api/v1/crew/access",
         json={
-            "message": "Passenger in 14C requested water and a blanket.",
-            "event_type": "passenger_request",
-            "device_ids": ["crew-device-1", "crew-device-2"],
-            "priority": "high",
-            "payload": {"seat_number": "14C"},
-        },
-    )
-
-    body = response.json()
-
-    assert response.status_code == 202
-    assert body["status"] == "queued"
-    assert body["targeted_devices"] == ["crew-device-1", "crew-device-2"]
-
-
-def test_list_crew_members() -> None:
-    response = client.get("/api/v1/crew/members")
-
-    body = response.json()
-
-    assert response.status_code == 200
-    assert len(body["members"]) == 2
-
-
-def test_get_current_queue_request() -> None:
-    response = client.get("/api/v1/crew/queue/current")
-
-    body = response.json()
-
-    assert response.status_code == 200
-    assert body["active_request"]["status"] == "collecting"
-    assert len(body["active_request"]["pending_items"]) >= 1
-
-
-def test_add_items_to_queue_tray() -> None:
-    response = client.post(
-        "/api/v1/crew/queue/current/tray-items",
-        json={
-            "crew_member_id": "crew-002",
-            "selections": [
-                {
-                    "item_name": "water",
-                    "quantity": 2,
-                    "seat_numbers": ["10A", "12C"],
-                },
-                {
-                    "item_name": "apple",
-                    "quantity": 1,
-                    "seat_numbers": ["12C"],
-                },
-            ],
-        },
-    )
-
-    body = response.json()
-
-    assert response.status_code == 200
-    assert body["active_request"]["crew_member_id"] == "crew-002"
-    assert len(body["active_request"]["tray_items"]) == 2
-    assert body["active_request"]["tray_items"][0]["added_to_tray"] is True
-
-
-def test_dispatch_queue_request() -> None:
-    response = client.post(
-        "/api/v1/crew/queue/current/dispatch",
-        json={
-            "crew_member_id": "crew-002",
-            "note": "Leaving galley with current tray.",
-        },
-    )
-
-    body = response.json()
-
-    assert response.status_code == 200
-    assert body["served_request"]["status"] == "being_served"
-    assert body["next_request"]["status"] == "collecting"
-    assert len(body["next_request"]["pending_items"]) >= 1
-
-
-def test_create_crew_instruction() -> None:
-    response = client.post(
-        "/api/v1/crew/instructions",
-        json={
-            "title": "Serve seat 14C",
-            "instruction_text": "Deliver a blanket and water to seat 14C.",
-            "assignee_ids": ["crew-002"],
-            "priority": "high",
+            "crew_member_code": "crew-002",
+            "device_id": "ipad-01",
+            "full_name": "Daniel Perez",
+            "role": "attendant",
+            "assigned_zone": "Mid cabin",
         },
     )
 
     body = response.json()
 
     assert response.status_code == 201
-    assert body["title"] == "Serve seat 14C"
-    assert body["status"] == "open"
+    assert body["crew_member_code"] == "crew-002"
+    assert body["status"] == "active"
+
+
+def test_list_crew_members(monkeypatch) -> None:
+    flight_id = str(uuid4())
+
+    def fake_list_crew_members():
+        return {
+            "flight_id": flight_id,
+            "flight_number": "AI101",
+            "members": [
+                {
+                    "crew_member_id": "crew-001",
+                    "full_name": "Aisha Khan",
+                    "role": "lead",
+                    "device_id": "ipad-01",
+                    "assigned_zone": "Forward cabin",
+                }
+            ],
+            "message": "Crew roster loaded from Supabase.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.list_crew_members",
+        fake_list_crew_members,
+    )
+
+    response = client.get("/api/v1/crew/members")
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["flight_number"] == "AI101"
+    assert len(body["members"]) == 1
+
+
+def test_list_crew_instructions(monkeypatch) -> None:
+    flight_id = str(uuid4())
+
+    def fake_list_crew_instructions():
+        return {
+            "flight_id": flight_id,
+            "flight_number": "AI101",
+            "items": [
+                {
+                    "instruction_id": str(uuid4()),
+                    "flight_id": flight_id,
+                    "title": "Serve forward cabin refreshments",
+                    "instruction_text": "Deliver water and apples to waiting passengers.",
+                    "seat_numbers": ["10A", "12C"],
+                    "priority": "medium",
+                    "status": "open",
+                    "created_at": "2026-02-28T12:00:00+00:00",
+                    "updated_at": "2026-02-28T12:00:00+00:00",
+                }
+            ],
+            "message": "Crew instructions loaded from Supabase.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.list_crew_instructions",
+        fake_list_crew_instructions,
+    )
+
+    response = client.get("/api/v1/crew/instructions")
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["items"][0]["title"] == "Serve forward cabin refreshments"
+
+
+def test_get_management_request_summary(monkeypatch) -> None:
+    def fake_get_request_summary():
+        return {
+            "flight_number": "AI101",
+            "total_requests": 12,
+            "active_seats": 7,
+            "submitted_requests": 5,
+            "being_served_requests": 4,
+            "completed_requests": 3,
+            "top_categories": [
+                {"category": "refreshment", "total_requests": 8},
+                {"category": "comfort", "total_requests": 4},
+            ],
+            "message": "Management summary loaded from Supabase.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.management.get_request_summary",
+        fake_get_request_summary,
+    )
+
+    response = client.get("/api/v1/management/requests/summary")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["flight_number"] == "AI101"
+    assert body["total_requests"] == 12

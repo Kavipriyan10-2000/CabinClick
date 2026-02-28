@@ -11,7 +11,8 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=settings.app_version,
         description=(
-            "Starter backend for passenger speech intake and crew device broadcasts."
+            "Starter backend for flight registration, passenger requests, crew access, "
+            "and management summaries."
         ),
     )
 
