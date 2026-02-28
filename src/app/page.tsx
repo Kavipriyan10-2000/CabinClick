@@ -42,7 +42,7 @@ type SeatInfo = {
 }
 
 const DEFAULT_SEAT_INFO: SeatInfo = {
-  seat: "14A",
+  seat: "10A",
   flightNumber: "LH441",
   route: "FRANKFURT → NEW YORK",
   origin: "Frankfurt",

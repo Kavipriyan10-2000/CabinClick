@@ -40,7 +40,7 @@ export type SeatData = {
   row: number
   col: string
   zone: "A" | "B" | "C"
-  class: "business" | "economy"
+  class: "business" | "premium-economy" | "economy"
   status: SeatStatus
   passenger?: string
   requestId?: string
@@ -77,8 +77,8 @@ export const MOCK_FLIGHT: FlightInfo = {
   departure: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2h ago
   arrival: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),   // 6h from now
   aircraft: "Boeing 747-8",
-  totalSeats: 99,
-  occupiedSeats: 84,
+  totalSeats: 288,
+  occupiedSeats: 259,
   phase: "in-flight",
 }
 
@@ -99,7 +99,7 @@ const now = Date.now()
 export const INITIAL_REQUESTS: CrewRequest[] = [
   {
     id: "r1",
-    seat: "14A",
+    seat: "10A",
     zone: "B",
     item: "Still Water",
     itemKey: "water",
@@ -114,7 +114,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r2",
-    seat: "6B",
+    seat: "3C",
     zone: "A",
     item: "Chicken Pasta",
     itemKey: "chickenPasta",
@@ -130,7 +130,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r3",
-    seat: "24C",
+    seat: "34J",
     zone: "C",
     item: "Blanket",
     itemKey: "blanket",
@@ -146,7 +146,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r4",
-    seat: "18C",
+    seat: "12F",
     zone: "B",
     item: "MEDICAL – Headache",
     category: "medical",
@@ -159,7 +159,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r5",
-    seat: "30B",
+    seat: "46H",
     zone: "C",
     item: "Orange Juice",
     itemKey: "orangeJuice",
@@ -188,7 +188,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r7",
-    seat: "16B",
+    seat: "11D",
     zone: "B",
     item: "Champagne",
     itemKey: "champagne",
@@ -203,7 +203,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r8",
-    seat: "27A",
+    seat: "39C",
     zone: "C",
     item: "Headphones",
     itemKey: "headphones",
@@ -224,7 +224,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
 function makeSeat(
   row: number,
   col: string,
-  seatClass: "business" | "economy",
+  seatClass: "business" | "premium-economy" | "economy",
   zone: "A" | "B" | "C",
   status: SeatStatus = "occupied",
   passenger?: string,
@@ -233,11 +233,28 @@ function makeSeat(
   return { id: `${row}${col}`, row, col, zone, class: seatClass, status, passenger, requestId }
 }
 
-const ECONOMY_COLS  = ["A", "B", "C"]
-const ZONE_ROWS = {
-  A: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-  B: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
-  C: [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
+const BUSINESS_COLS = ["A", "C", "D", "F", "G", "J"] as const
+const ECONOMY_COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "J"] as const
+
+const range = (start: number, end: number) =>
+  Array.from({ length: end - start + 1 }, (_, index) => start + index)
+
+const ZONE_LAYOUT = {
+  A: {
+    rows: range(1, 5),
+    cols: BUSINESS_COLS,
+    seatClass: "business" as const,
+  },
+  B: {
+    rows: range(10, 13),
+    cols: BUSINESS_COLS,
+    seatClass: "premium-economy" as const,
+  },
+  C: {
+    rows: [...range(30, 41), ...range(44, 57)],
+    cols: ECONOMY_COLS,
+    seatClass: "economy" as const,
+  },
 } as const
 
 const SPECIAL_SEATS: Record<
@@ -245,37 +262,55 @@ const SPECIAL_SEATS: Record<
   Pick<SeatData, "status" | "passenger" | "requestId">
 > = {
   "2A": { status: "pending", passenger: "Mr. Harrison", requestId: "r6" },
-  "6B": { status: "serving", passenger: "Ms. Dupont", requestId: "r2" },
-  "14A": { status: "pending", passenger: "Müller, K.", requestId: "r1" },
-  "16B": { status: "pending", passenger: "García, M.", requestId: "r7" },
-  "18C": { status: "pending", passenger: "Yilmaz, A.", requestId: "r4" },
-  "24C": { status: "serving", passenger: "Chen, L.", requestId: "r3" },
-  "27A": { status: "serving", passenger: "Yamamoto, H.", requestId: "r8" },
-  "30B": { status: "delivered", passenger: "Leclerc, J.", requestId: "r5" },
+  "3C": { status: "serving", passenger: "Ms. Dupont", requestId: "r2" },
+  "10A": { status: "pending", passenger: "Müller, K.", requestId: "r1" },
+  "11D": { status: "pending", passenger: "García, M.", requestId: "r7" },
+  "12F": { status: "pending", passenger: "Yilmaz, A.", requestId: "r4" },
+  "34J": { status: "serving", passenger: "Chen, L.", requestId: "r3" },
+  "39C": { status: "serving", passenger: "Yamamoto, H.", requestId: "r8" },
+  "46H": { status: "delivered", passenger: "Leclerc, J.", requestId: "r5" },
 }
 
 const EMPTY_SEATS = new Set([
   "1A",
-  "3A",
-  "7C",
-  "12C",
-  "15A",
-  "19B",
-  "21C",
-  "23A",
-  "26B",
-  "29C",
-  "31A",
-  "33C",
+  "1J",
+  "4D",
+  "5G",
+  "10C",
+  "11G",
+  "12A",
+  "13J",
+  "30B",
+  "31H",
+  "32E",
+  "33A",
+  "35F",
+  "36J",
+  "37D",
+  "38B",
+  "40H",
+  "41C",
+  "44A",
+  "45J",
+  "47E",
+  "49B",
+  "50H",
+  "52D",
+  "53A",
+  "54J",
+  "55E",
+  "56C",
+  "57G",
 ])
 
 function buildZoneSeats(
   zone: "A" | "B" | "C",
   rows: readonly number[],
-  seatClass: "business" | "economy",
+  cols: readonly string[],
+  seatClass: "business" | "premium-economy" | "economy",
 ) {
   return rows.flatMap((row) =>
-    ECONOMY_COLS.map((col) => {
+    cols.map((col) => {
       const id = `${row}${col}`
       const special = SPECIAL_SEATS[id]
 
@@ -301,9 +336,9 @@ function buildZoneSeats(
 }
 
 export const MOCK_SEATS: SeatData[] = [
-  ...buildZoneSeats("A", ZONE_ROWS.A, "business"),
-  ...buildZoneSeats("B", ZONE_ROWS.B, "economy"),
-  ...buildZoneSeats("C", ZONE_ROWS.C, "economy"),
+  ...buildZoneSeats("A", ZONE_LAYOUT.A.rows, ZONE_LAYOUT.A.cols, ZONE_LAYOUT.A.seatClass),
+  ...buildZoneSeats("B", ZONE_LAYOUT.B.rows, ZONE_LAYOUT.B.cols, ZONE_LAYOUT.B.seatClass),
+  ...buildZoneSeats("C", ZONE_LAYOUT.C.rows, ZONE_LAYOUT.C.cols, ZONE_LAYOUT.C.seatClass),
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

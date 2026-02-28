@@ -16,9 +16,9 @@ type C1PreflightProps = {
 }
 
 const ZONES = [
-  { zone: "A", label: "Business Class", rows: "1–11", seats: 33, color: "bg-purple-100 border-purple-300 text-purple-800" },
-  { zone: "B", label: "Economy Front", rows: "12–22", seats: 33, color: "bg-blue-100 border-blue-300 text-blue-800" },
-  { zone: "C", label: "Economy Rear", rows: "23–33", seats: 33, color: "bg-emerald-100 border-emerald-300 text-emerald-800" },
+  { zone: "A", label: "Business Elite", rows: "1–5", seats: 30, color: "bg-purple-100 border-purple-300 text-purple-800" },
+  { zone: "B", label: "Premium Economy", rows: "10–13", seats: 24, color: "bg-blue-100 border-blue-300 text-blue-800" },
+  { zone: "C", label: "Economy Class", rows: "30–41, 44–57", seats: 234, color: "bg-emerald-100 border-emerald-300 text-emerald-800" },
 ]
 
 const SERVICE_TIMELINE = [
@@ -169,7 +169,7 @@ export function C1Preflight({
               <p className="text-white/60 text-xs mt-1">{aircraft} · Dep. {departureTime}</p>
               <div className="mt-3 grid grid-cols-3 gap-3">
                 <div className="text-center">
-                  <div className="text-2xl font-black text-cabin-gold">99</div>
+                  <div className="text-2xl font-black text-cabin-gold">288</div>
                   <div className="text-white/50 text-xs">Total Seats</div>
                 </div>
                 <div className="text-center">

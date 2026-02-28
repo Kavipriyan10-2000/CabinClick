@@ -21,9 +21,9 @@ const NOTIFICATION_PRESETS: NotificationType[] = [
 
 const TARGETS = [
   { key: "all",    label: "All Passengers" },
-  { key: "zone-a", label: "Zone A (Business)" },
-  { key: "zone-b", label: "Zone B (Economy Front)" },
-  { key: "zone-c", label: "Zone C (Economy Rear)" },
+  { key: "zone-a", label: "Zone A (Business Elite)" },
+  { key: "zone-b", label: "Zone B (Premium Economy)" },
+  { key: "zone-c", label: "Zone C (Economy Class)" },
   { key: "seat",   label: "Specific Seat" },
 ]
 

@@ -26,6 +26,8 @@ const STATUS_LEGEND = [
   { status: "sos",       label: "SOS",             color: "bg-red-500 border-red-600" },
 ]
 
+const AISLE_BEFORE_COLUMNS = new Set(["D", "G"])
+
 export function C6SeatMap({ seats, requests, crew, onSeatClick }: C6SeatMapProps) {
   const [selectedSeat, setSelectedSeat] = useState<SeatData | null>(null)
 
@@ -62,7 +64,11 @@ export function C6SeatMap({ seats, requests, crew, onSeatClick }: C6SeatMapProps
     const stats   = zoneStats(zone)
     const crewInZone = crew.filter((c) => c.zone === zone || c.zone === "all")
 
-    const zoneLabelMap = { A: "Zone A – Business", B: "Zone B – Economy Front", C: "Zone C – Economy Rear" }
+    const zoneLabelMap = {
+      A: "Zone A – Business Elite",
+      B: "Zone B – Premium Economy",
+      C: "Zone C – Economy Class",
+    }
 
     return (
       <div key={zone} className={`rounded-2xl border-2 ${ZONE_COLORS[zone]} p-4 mb-4`}>
@@ -101,8 +107,7 @@ export function C6SeatMap({ seats, requests, crew, onSeatClick }: C6SeatMapProps
             {/* Column headers */}
             <div className="flex items-center mb-1 pl-8">
               {cols.map((col, i) => {
-                // Add aisle gap between C and D
-                const isAisle = zone === "A" ? col === "C" : col === "C"
+                const isAisle = AISLE_BEFORE_COLUMNS.has(col)
                 return (
                   <div key={col} className="flex items-center">
                     {isAisle && <div className="w-3" />}
@@ -120,7 +125,7 @@ export function C6SeatMap({ seats, requests, crew, onSeatClick }: C6SeatMapProps
                   <div className="w-7 text-right pr-1.5 text-xs text-muted-foreground font-medium">{row}</div>
                   {cols.map((col) => {
                     const seat = rowSeats.find((s) => s.col === col)
-                    const isAisle = zone === "A" ? col === "C" : col === "C"
+                    const isAisle = AISLE_BEFORE_COLUMNS.has(col)
                     return (
                       <div key={col} className="flex items-center">
                         {isAisle && <div className="w-3" />}
@@ -192,7 +197,9 @@ export function C6SeatMap({ seats, requests, crew, onSeatClick }: C6SeatMapProps
 
             <div>
               <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Class</div>
-              <p className="text-sm font-semibold text-cabin-navy capitalize">{selectedSeat.class}</p>
+              <p className="text-sm font-semibold text-cabin-navy">
+                {selectedSeat.class === "premium-economy" ? "Premium Economy" : selectedSeat.class === "business" ? "Business Elite" : "Economy Class"}
+              </p>
             </div>
 
             <div>

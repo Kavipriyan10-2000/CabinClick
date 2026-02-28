@@ -111,10 +111,10 @@ function getOrCreateCrewIdentity() {
 
 function deriveZone(seatNumber: string): "A" | "B" | "C" {
   const rowNumber = Number.parseInt(seatNumber, 10)
-  if (rowNumber <= 11) {
+  if (rowNumber >= 1 && rowNumber <= 5) {
     return "A"
   }
-  if (rowNumber <= 22) {
+  if (rowNumber >= 10 && rowNumber <= 13) {
     return "B"
   }
   return "C"

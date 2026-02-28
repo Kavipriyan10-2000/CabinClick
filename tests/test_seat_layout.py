@@ -2,30 +2,30 @@ import pytest
 
 from app.services.seat_layout import (
     SEAT_COUNTS_BY_ZONE,
+    SEAT_VALIDATION_MESSAGE,
     get_seat_zone,
     validate_seat_number,
 )
 
 
 def test_validate_seat_number_normalizes_case_and_whitespace() -> None:
-    assert validate_seat_number(" 14b ") == "14B"
+    assert validate_seat_number(" 10c ") == "10C"
 
 
 @pytest.mark.parametrize(
     "seat_number",
     [
         "0A",
-        "34A",
-        "12D",
+        "6A",
+        "14A",
+        "42A",
+        "12B",
         "7",
         "ABC",
     ],
 )
 def test_validate_seat_number_rejects_invalid_values(seat_number: str) -> None:
-    with pytest.raises(
-        ValueError,
-        match="Unsupported seat number. Expected rows 1-33 and columns A-C.",
-    ):
+    with pytest.raises(ValueError, match=SEAT_VALIDATION_MESSAGE):
         validate_seat_number(seat_number)
 
 
@@ -33,14 +33,14 @@ def test_validate_seat_number_rejects_invalid_values(seat_number: str) -> None:
     ("seat_number", "expected_zone"),
     [
         ("1A", "A"),
-        ("11C", "A"),
-        ("12A", "B"),
-        ("22C", "B"),
-        ("23A", "C"),
-        ("33C", "C"),
+        ("5J", "A"),
+        ("10A", "B"),
+        ("13J", "B"),
+        ("30A", "C"),
+        ("57J", "C"),
     ],
 )
-def test_get_seat_zone_uses_33x33x33_layout(
+def test_get_seat_zone_uses_widebody_cabin_layout(
     seat_number: str,
     expected_zone: str,
 ) -> None:
@@ -48,4 +48,4 @@ def test_get_seat_zone_uses_33x33x33_layout(
 
 
 def test_seat_counts_by_zone_match_expected_layout() -> None:
-    assert SEAT_COUNTS_BY_ZONE == {"A": 33, "B": 33, "C": 33}
+    assert SEAT_COUNTS_BY_ZONE == {"A": 30, "B": 24, "C": 234}

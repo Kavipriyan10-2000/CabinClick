@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from app.main import app
 from app.api.routes import passenger_requests as passenger_requests_route
+from app.services.seat_layout import SEAT_VALIDATION_MESSAGE
 
 client = TestClient(app)
 
@@ -99,7 +100,7 @@ def test_create_passenger_seat_access(monkeypatch) -> None:
 
 def test_create_passenger_seat_access_invalid_seat_returns_422(monkeypatch) -> None:
     def fake_grant_seat_access(seat_number, payload):
-        raise ValueError("Unsupported seat number. Expected rows 1-33 and columns A-C.")
+        raise ValueError(SEAT_VALIDATION_MESSAGE)
 
     monkeypatch.setattr(
         "app.api.routes.passenger_access.grant_seat_access",
@@ -118,7 +119,7 @@ def test_create_passenger_seat_access_invalid_seat_returns_422(monkeypatch) -> N
     body = response.json()
 
     assert response.status_code == 422
-    assert body["detail"] == "Unsupported seat number. Expected rows 1-33 and columns A-C."
+    assert body["detail"] == SEAT_VALIDATION_MESSAGE
 
 
 def test_list_passenger_requests(monkeypatch) -> None:
@@ -204,7 +205,7 @@ def test_create_passenger_request(monkeypatch) -> None:
 
 def test_create_passenger_request_invalid_seat_returns_422(monkeypatch) -> None:
     def fake_create_passenger_request(seat_number, payload):
-        raise ValueError("Unsupported seat number. Expected rows 1-33 and columns A-C.")
+        raise ValueError(SEAT_VALIDATION_MESSAGE)
 
     monkeypatch.setattr(
         "app.api.routes.passenger_requests.create_passenger_request",
@@ -223,7 +224,7 @@ def test_create_passenger_request_invalid_seat_returns_422(monkeypatch) -> None:
     body = response.json()
 
     assert response.status_code == 422
-    assert body["detail"] == "Unsupported seat number. Expected rows 1-33 and columns A-C."
+    assert body["detail"] == SEAT_VALIDATION_MESSAGE
 
 
 def test_create_voice_passenger_request(monkeypatch) -> None:
