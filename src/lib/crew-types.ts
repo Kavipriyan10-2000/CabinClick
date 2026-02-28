@@ -77,8 +77,8 @@ export const MOCK_FLIGHT: FlightInfo = {
   departure: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2h ago
   arrival: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),   // 6h from now
   aircraft: "Boeing 747-8",
-  totalSeats: 74,
-  occupiedSeats: 61,
+  totalSeats: 99,
+  occupiedSeats: 84,
   phase: "in-flight",
 }
 
@@ -130,7 +130,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r3",
-    seat: "22C",
+    seat: "24C",
     zone: "C",
     item: "Blanket",
     itemKey: "blanket",
@@ -146,7 +146,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r4",
-    seat: "18F",
+    seat: "18C",
     zone: "B",
     item: "MEDICAL – Headache",
     category: "medical",
@@ -159,7 +159,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r5",
-    seat: "30D",
+    seat: "30B",
     zone: "C",
     item: "Orange Juice",
     itemKey: "orangeJuice",
@@ -188,7 +188,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r7",
-    seat: "11B",
+    seat: "16B",
     zone: "B",
     item: "Champagne",
     itemKey: "champagne",
@@ -203,7 +203,7 @@ export const INITIAL_REQUESTS: CrewRequest[] = [
   },
   {
     id: "r8",
-    seat: "25E",
+    seat: "27A",
     zone: "C",
     item: "Headphones",
     itemKey: "headphones",
@@ -233,43 +233,77 @@ function makeSeat(
   return { id: `${row}${col}`, row, col, zone, class: seatClass, status, passenger, requestId }
 }
 
-const BUSINESS_COLS = ["A", "B", "C", "D"]
-const ECONOMY_COLS  = ["A", "B", "C", "D", "E", "F"]
+const ECONOMY_COLS  = ["A", "B", "C"]
+const ZONE_ROWS = {
+  A: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  B: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+  C: [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
+} as const
+
+const SPECIAL_SEATS: Record<
+  string,
+  Pick<SeatData, "status" | "passenger" | "requestId">
+> = {
+  "2A": { status: "pending", passenger: "Mr. Harrison", requestId: "r6" },
+  "6B": { status: "serving", passenger: "Ms. Dupont", requestId: "r2" },
+  "14A": { status: "pending", passenger: "Müller, K.", requestId: "r1" },
+  "16B": { status: "pending", passenger: "García, M.", requestId: "r7" },
+  "18C": { status: "pending", passenger: "Yilmaz, A.", requestId: "r4" },
+  "24C": { status: "serving", passenger: "Chen, L.", requestId: "r3" },
+  "27A": { status: "serving", passenger: "Yamamoto, H.", requestId: "r8" },
+  "30B": { status: "delivered", passenger: "Leclerc, J.", requestId: "r5" },
+}
+
+const EMPTY_SEATS = new Set([
+  "1A",
+  "3A",
+  "7C",
+  "12C",
+  "15A",
+  "19B",
+  "21C",
+  "23A",
+  "26B",
+  "29C",
+  "31A",
+  "33C",
+])
+
+function buildZoneSeats(
+  zone: "A" | "B" | "C",
+  rows: readonly number[],
+  seatClass: "business" | "economy",
+) {
+  return rows.flatMap((row) =>
+    ECONOMY_COLS.map((col) => {
+      const id = `${row}${col}`
+      const special = SPECIAL_SEATS[id]
+
+      if (special) {
+        return makeSeat(
+          row,
+          col,
+          seatClass,
+          zone,
+          special.status,
+          special.passenger,
+          special.requestId,
+        )
+      }
+
+      if (EMPTY_SEATS.has(id)) {
+        return makeSeat(row, col, seatClass, zone, "empty")
+      }
+
+      return makeSeat(row, col, seatClass, zone, "occupied", "Passenger")
+    }),
+  )
+}
 
 export const MOCK_SEATS: SeatData[] = [
-  // Zone A – Business (rows 1–6)
-  ...([1, 2, 3, 4, 5, 6] as number[]).flatMap((row) =>
-    BUSINESS_COLS.map((col) => {
-      const id = `${row}${col}`
-      if (id === "2A") return makeSeat(row, col, "business", "A", "pending", "Mr. Harrison",  "r6")
-      if (id === "6B") return makeSeat(row, col, "business", "A", "serving", "Ms. Dupont",    "r2")
-      if ([1, 3].includes(row) && col === "A") return makeSeat(row, col, "business", "A", "empty")
-      if (row === 4 && col === "D") return makeSeat(row, col, "business", "A", "empty")
-      return makeSeat(row, col, "business", "A", "occupied", "Passenger")
-    })
-  ),
-  // Zone B – Economy front (rows 10–20)
-  ...([10,11,12,13,14,15,16,17,18,19,20] as number[]).flatMap((row) =>
-    ECONOMY_COLS.map((col) => {
-      const id = `${row}${col}`
-      if (id === "14A") return makeSeat(row, col, "economy", "B", "pending",  "Müller, K.",    "r1")
-      if (id === "11B") return makeSeat(row, col, "economy", "B", "pending",  "García, M.",    "r7")
-      if (id === "18F") return makeSeat(row, col, "economy", "B", "pending",  "Yilmaz, A.",    "r4")
-      if ([10,13,16].includes(row) && ["D","E","F"].includes(col)) return makeSeat(row, col, "economy", "B", "empty")
-      return makeSeat(row, col, "economy", "B", "occupied", "Passenger")
-    })
-  ),
-  // Zone C – Economy rear (rows 21–30)
-  ...([21,22,23,24,25,26,27,28,29,30] as number[]).flatMap((row) =>
-    ECONOMY_COLS.map((col) => {
-      const id = `${row}${col}`
-      if (id === "22C") return makeSeat(row, col, "economy", "C", "serving",   "Chen, L.",     "r3")
-      if (id === "25E") return makeSeat(row, col, "economy", "C", "serving",   "Yamamoto, H.", "r8")
-      if (id === "30D") return makeSeat(row, col, "economy", "C", "delivered", "Leclerc, J.",  "r5")
-      if ([24,27,29].includes(row) && ["A","B"].includes(col)) return makeSeat(row, col, "economy", "C", "empty")
-      return makeSeat(row, col, "economy", "C", "occupied", "Passenger")
-    })
-  ),
+  ...buildZoneSeats("A", ZONE_ROWS.A, "business"),
+  ...buildZoneSeats("B", ZONE_ROWS.B, "economy"),
+  ...buildZoneSeats("C", ZONE_ROWS.C, "economy"),
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

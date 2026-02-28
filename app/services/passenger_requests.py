@@ -8,19 +8,21 @@ from app.schemas.language import LanguageCode
 from app.services._flight_context import get_active_flight
 from app.db.supabase import get_supabase_client
 from app.services.instruction_batcher import emit_crew_instruction_if_needed
+from app.services.seat_layout import validate_seat_number
 from app.services.voice_requests import interpret_passenger_audio
 
 
 def list_passenger_requests(
     seat_number: str,
 ) -> PassengerRequestListResponse:
+    validated_seat_number = validate_seat_number(seat_number)
     flight = get_active_flight()
     response = (
         get_supabase_client()
         .table("passenger_requests")
         .select("*")
         .eq("flight_id", flight["id"])
-        .eq("seat_number", seat_number)
+        .eq("seat_number", validated_seat_number)
         .order("created_at", desc=True)
         .execute()
     )
@@ -43,7 +45,7 @@ def list_passenger_requests(
     ]
     return PassengerRequestListResponse(
         flight_id=flight["id"],
-        seat_number=seat_number,
+        seat_number=validated_seat_number,
         items=items,
         message=(
             "Passenger request history loaded from Supabase."
@@ -104,13 +106,14 @@ def _create_passenger_request_record(
     payload: PassengerRequestCreate,
     translated_text: str | None = None,
 ) -> PassengerRequestRecord:
+    validated_seat_number = validate_seat_number(seat_number)
     flight = get_active_flight()
     access_session_response = (
         get_supabase_client()
         .table("seat_access_sessions")
         .select("id")
         .eq("flight_id", flight["id"])
-        .eq("seat_number", seat_number)
+        .eq("seat_number", validated_seat_number)
         .order("created_at", desc=True)
         .limit(1)
         .execute()
@@ -125,7 +128,7 @@ def _create_passenger_request_record(
             {
                 "flight_id": flight["id"],
                 "seat_access_session_id": seat_access_session_id,
-                "seat_number": seat_number,
+                "seat_number": validated_seat_number,
                 "category": payload.category,
                 "source": payload.source,
                 "request_text": payload.request_text,
@@ -143,7 +146,7 @@ def _create_passenger_request_record(
     return PassengerRequestRecord(
         request_id=record["id"],
         flight_id=record["flight_id"],
-        seat_number=seat_number,
+        seat_number=validated_seat_number,
         category=payload.category,
         source=payload.source,
         status=record["status"],

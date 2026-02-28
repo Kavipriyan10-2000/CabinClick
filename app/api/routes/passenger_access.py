@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.passenger_access import (
     PassengerSeatAccessRequest,
@@ -18,7 +18,10 @@ def create_passenger_seat_access(
     seat_number: str,
     payload: PassengerSeatAccessRequest,
 ) -> PassengerSeatAccessResponse:
-    return grant_seat_access(
-        seat_number=seat_number,
-        payload=payload,
-    )
+    try:
+        return grant_seat_access(
+            seat_number=seat_number,
+            payload=payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -25,7 +25,10 @@ MULTIPART_AVAILABLE = importlib.util.find_spec("multipart") is not None
 def get_passenger_requests(
     seat_number: str,
 ) -> PassengerRequestListResponse:
-    return list_passenger_requests(seat_number=seat_number)
+    try:
+        return list_passenger_requests(seat_number=seat_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(
@@ -37,10 +40,13 @@ def submit_passenger_request(
     seat_number: str,
     payload: PassengerRequestCreate,
 ) -> PassengerRequestRecord:
-    return create_passenger_request(
-        seat_number=seat_number,
-        payload=payload,
-    )
+    try:
+        return create_passenger_request(
+            seat_number=seat_number,
+            payload=payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 if MULTIPART_AVAILABLE:
@@ -60,9 +66,12 @@ if MULTIPART_AVAILABLE:
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="Audio file is empty.")
 
-        return create_voice_passenger_request(
-            seat_number=seat_number,
-            audio_bytes=audio_bytes,
-            mime_type=audio.content_type or "audio/webm",
-            source_language_hint=source_language.value,
-        )
+        try:
+            return create_voice_passenger_request(
+                seat_number=seat_number,
+                audio_bytes=audio_bytes,
+                mime_type=audio.content_type or "audio/webm",
+                source_language_hint=source_language.value,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
