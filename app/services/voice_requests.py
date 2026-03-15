@@ -13,18 +13,20 @@ Interpret the passenger's spoken request and respond with a single JSON object.
 Requirements:
 - Keep `passenger_message` in the same language used by the passenger.
 - Use `source_language` as either `en` or `de`.
-- Use a short English slug for `category` such as refreshment, comfort, medical, seat_help, or baggage.
+- Use `category` as one of these onboard request codes only:
+  `water`, `tea`, `coffee`, `juice`, `soft_drink`, `alcoholic_beverage`, `snack`, `meal`, `baby_food`, `warm_milk`, `blanket`, `pillow`, `headphones`, `eye_mask`, `earplugs`, `napkins`, `tissues`, `trash_collection`, `spill_cleanup`, `seat_issue`, `tray_issue`, `overhead_bin_issue`, `usb_charger_help`, `motion_sickness_bag`, `feeling_unwell`, `medication`, `emergency_assistance`.
 - Create `action_items` as an array of objects with:
   - `item`: passenger-facing item name in the passenger's language
   - `quantity`: integer, default 1
   - `notes`: optional passenger-language note
-  - `normalized_item`: short English label for backend processing
+  - `normalized_item`: one of the allowed onboard request codes above
 - Create `crew_summary` in English for the crew workflow.
 - Keep `metadata` as a flat JSON object with extra useful context only when justified.
+- Keep any extra passenger custom wording in `passenger_message` or `notes`, but do not invent request codes outside the allowed list.
 
 Return only JSON with this shape:
 {
-  "category": "refreshment",
+  "category": "water",
   "source_language": "de",
   "passenger_message": "Zwei Wasser, bitte.",
   "crew_summary": "Seat requested 2 waters.",

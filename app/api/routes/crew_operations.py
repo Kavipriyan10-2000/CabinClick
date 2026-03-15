@@ -7,6 +7,8 @@ from app.schemas.crew_operations import (
     CrewInstructionListResponse,
     CrewMemberListResponse,
     CrewQueueRequestListResponse,
+    LufthansaCrewListResponse,
+    WorkingCrewMemberListResponse,
 )
 from app.schemas.language import LanguageCode
 from app.services.crew_operations import (
@@ -15,7 +17,9 @@ from app.services.crew_operations import (
     list_crew_instructions,
     list_crew_members,
     list_queued_passenger_requests,
+    list_working_crew_members,
 )
+from app.services.lufthansa_flightops import get_mock_lufthansa_crew_list
 
 router = APIRouter(prefix="/crew", tags=["crew"])
 
@@ -37,6 +41,14 @@ def create_ipad_access(
 )
 def get_crew_members() -> CrewMemberListResponse:
     return list_crew_members()
+
+
+@router.get(
+    "/working-members",
+    response_model=WorkingCrewMemberListResponse,
+)
+def get_working_crew_members() -> WorkingCrewMemberListResponse:
+    return list_working_crew_members()
 
 
 @router.get(
@@ -78,3 +90,11 @@ def close_instruction(
         return complete_crew_instruction(instruction_id=instruction_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/lufthansa/crew-list",
+    response_model=LufthansaCrewListResponse,
+)
+def get_lufthansa_crew_list() -> LufthansaCrewListResponse:
+    return get_mock_lufthansa_crew_list()

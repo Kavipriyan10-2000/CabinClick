@@ -42,6 +42,20 @@ class CrewMemberListResponse(BaseModel):
     message: str
 
 
+class WorkingCrewMemberRecord(CrewMemberSummary):
+    access_id: UUID
+    access_created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
+class WorkingCrewMemberListResponse(BaseModel):
+    flight_id: UUID
+    flight_number: str
+    members: list[WorkingCrewMemberRecord] = Field(default_factory=list)
+    message: str
+
+
 class CrewAccessStatus(str, Enum):
     active = "active"
 
@@ -107,6 +121,7 @@ class CrewQueueRequestRecord(BaseModel):
     flight_id: UUID
     seat_number: str
     category: str
+    category_label: str
     request_text: str
     display_text: str
     language: LanguageCode = LanguageCode.en
@@ -119,4 +134,24 @@ class CrewQueueRequestListResponse(BaseModel):
     flight_id: UUID
     flight_number: str
     items: list[CrewQueueRequestRecord] = Field(default_factory=list)
+    message: str
+
+
+class LufthansaCrewMemberRecord(BaseModel):
+    crew_member_code: str
+    full_name: str
+    rank: str | None = None
+    role: str | None = None
+
+
+class CrewDeviceAssignment(BaseModel):
+    device_code: str
+    seat_scope: str
+    crew_member_code: str | None = None
+    full_name: str | None = None
+
+
+class LufthansaCrewListResponse(BaseModel):
+    items: list[LufthansaCrewMemberRecord] = Field(default_factory=list)
+    assignments: list[CrewDeviceAssignment] = Field(default_factory=list)
     message: str

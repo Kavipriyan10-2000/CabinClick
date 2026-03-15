@@ -109,7 +109,8 @@ def test_list_passenger_requests(monkeypatch) -> None:
                     "request_id": str(uuid4()),
                     "flight_id": flight_id,
                     "seat_number": seat_number,
-                    "category": "refreshment",
+                    "category": "water",
+                    "category_label": "water",
                     "source": "typed",
                     "status": "being_served",
                     "request_text": "Water please",
@@ -141,11 +142,14 @@ def test_create_passenger_request(monkeypatch) -> None:
     flight_id = str(uuid4())
 
     def fake_create_passenger_request(seat_number, payload):
+        assert payload.category.value == "blanket"
+        assert payload.quantity == 2
         return {
             "request_id": str(uuid4()),
             "flight_id": flight_id,
             "seat_number": seat_number,
             "category": payload.category,
+            "category_label": "blanket",
             "source": payload.source,
             "status": "submitted",
             "request_text": payload.request_text,
@@ -164,7 +168,8 @@ def test_create_passenger_request(monkeypatch) -> None:
     response = client.post(
         "/api/v1/seats/14C/requests",
         json={
-            "category": "comfort",
+            "category": "Blanket",
+            "quantity": 2,
             "request_text": "Please bring me a blanket.",
             "source": "typed",
         },
@@ -174,8 +179,21 @@ def test_create_passenger_request(monkeypatch) -> None:
 
     assert response.status_code == 201
     assert body["seat_number"] == "14C"
-    assert body["category"] == "comfort"
+    assert body["category"] == "blanket"
     assert body["status"] == "submitted"
+
+
+def test_create_passenger_request_rejects_unknown_item() -> None:
+    response = client.post(
+        "/api/v1/seats/14C/requests",
+        json={
+            "category": "pizza",
+            "request_text": "Please bring me pizza.",
+            "source": "typed",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_create_voice_passenger_request(monkeypatch) -> None:
@@ -198,7 +216,8 @@ def test_create_voice_passenger_request(monkeypatch) -> None:
             "request_id": str(uuid4()),
             "flight_id": flight_id,
             "seat_number": seat_number,
-            "category": "refreshment",
+            "category": "water",
+            "category_label": "water",
             "source": "speech",
             "status": "submitted",
             "request_text": "Zwei Wasser, bitte.",
@@ -311,6 +330,42 @@ def test_list_crew_members(monkeypatch) -> None:
     assert len(body["members"]) == 1
 
 
+def test_list_working_crew_members(monkeypatch) -> None:
+    flight_id = str(uuid4())
+
+    def fake_list_working_crew_members():
+        return {
+            "flight_id": flight_id,
+            "flight_number": "AI101",
+            "members": [
+                {
+                    "access_id": str(uuid4()),
+                    "access_created_at": "2026-02-28T12:00:00+00:00",
+                    "crew_member_id": "crew-001",
+                    "full_name": "Aisha Khan",
+                    "role": "lead",
+                    "device_id": "ipad-01",
+                    "assigned_zone": "Forward cabin",
+                    "preferred_language": "de",
+                }
+            ],
+            "message": "Working crew members loaded from active crew access sessions.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.list_working_crew_members",
+        fake_list_working_crew_members,
+    )
+
+    response = client.get("/api/v1/crew/working-members")
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["members"][0]["crew_member_id"] == "crew-001"
+    assert body["members"][0]["device_id"] == "ipad-01"
+
+
 def test_list_crew_instructions(monkeypatch) -> None:
     flight_id = str(uuid4())
 
@@ -370,7 +425,8 @@ def test_list_crew_request_queue(monkeypatch) -> None:
                     "request_id": str(uuid4()),
                     "flight_id": flight_id,
                     "seat_number": "14C",
-                    "category": "refreshment",
+                    "category": "water",
+                    "category_label": "water",
                     "request_text": "Zwei Wasser, bitte.",
                     "display_text": "Zwei Wasser, bitte.",
                     "language": "de",
@@ -393,6 +449,7 @@ def test_list_crew_request_queue(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert body["items"][0]["seat_number"] == "14C"
+    assert body["items"][0]["category"] == "water"
     assert body["items"][0]["display_text"] == "Zwei Wasser, bitte."
 
 
@@ -419,6 +476,109 @@ def test_complete_crew_instruction(monkeypatch) -> None:
     assert response.status_code == 200
     assert body["instruction_id"] == instruction_id
     assert body["status"] == "completed"
+
+
+def test_get_lufthansa_crew_list(monkeypatch) -> None:
+    def fake_get_mock_lufthansa_crew_list():
+        return {
+            "items": [
+                {
+                    "crew_member_code": "4711",
+                    "full_name": "Anna Schmidt",
+                    "rank": "FA",
+                    "role": "attendant",
+                },
+                {
+                    "crew_member_code": "5822",
+                    "full_name": "Max Weber",
+                    "rank": "FA",
+                    "role": "attendant",
+                },
+            ],
+            "assignments": [
+                {
+                    "device_code": "1",
+                    "seat_scope": "Rows 1-10 seats A-D",
+                    "crew_member_code": "4711",
+                    "full_name": "Anna Schmidt",
+                },
+                {
+                    "device_code": "2",
+                    "seat_scope": "Rows 1-10 seats E-I",
+                    "crew_member_code": "5822",
+                    "full_name": "Max Weber",
+                },
+            ],
+            "message": "Crew list fetched from Lufthansa FlightOps.",
+    }
+
+    monkeypatch.setattr(
+        "app.api.routes.crew_operations.get_mock_lufthansa_crew_list",
+        fake_get_mock_lufthansa_crew_list,
+    )
+
+    response = client.get("/api/v1/crew/lufthansa/crew-list")
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert len(body["items"]) == 2
+    assert body["assignments"][0]["device_code"] == "1"
+    assert body["assignments"][1]["seat_scope"] == "Rows 1-10 seats E-I"
+
+
+def test_get_lufthansa_takeoff_time(monkeypatch) -> None:
+    def fake_get_mock_takeoff_time():
+        return {
+            "flight_number": "LH761",
+            "origin": "DEL",
+            "destination": "FRA",
+            "scheduled_time": "2026-02-28T02:15:00+00:00",
+            "estimated_time": "2026-02-28T02:25:00+00:00",
+            "actual_time": "2026-02-28T02:27:00+00:00",
+            "status": "departed",
+            "source": "lufthansa_mock",
+            "message": "Mock Lufthansa takeoff time loaded.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.flight_registration.get_mock_takeoff_time",
+        fake_get_mock_takeoff_time,
+    )
+
+    response = client.get("/api/v1/flights/lufthansa/takeoff-time")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["flight_number"] == "LH761"
+    assert body["status"] == "departed"
+
+
+def test_get_lufthansa_landing_time(monkeypatch) -> None:
+    def fake_get_mock_landing_time():
+        return {
+            "flight_number": "LH761",
+            "origin": "DEL",
+            "destination": "FRA",
+            "scheduled_time": "2026-02-28T10:05:00+00:00",
+            "estimated_time": "2026-02-28T09:58:00+00:00",
+            "actual_time": None,
+            "status": "en_route",
+            "source": "lufthansa_mock",
+            "message": "Mock Lufthansa landing time loaded.",
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.flight_registration.get_mock_landing_time",
+        fake_get_mock_landing_time,
+    )
+
+    response = client.get("/api/v1/flights/lufthansa/landing-time")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["destination"] == "FRA"
+    assert body["status"] == "en_route"
 
 
 def test_get_management_request_summary(monkeypatch) -> None:

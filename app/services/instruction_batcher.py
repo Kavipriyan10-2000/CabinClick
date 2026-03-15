@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from app.db.supabase import get_supabase_client
+from app.schemas.request_catalog import request_label_for
 from app.services._flight_context import get_active_flight
 
 
@@ -97,11 +98,15 @@ def _build_aggregate_summary(records: list[dict[str, Any]]) -> str:
             continue
 
         for action_item in action_items:
-            label = (
-                action_item.get("normalized_item")
-                or action_item.get("item")
-                or "item"
-            )
+            normalized_item = action_item.get("normalized_item")
+            try:
+                label = (
+                    request_label_for(normalized_item)
+                    if normalized_item
+                    else action_item.get("item") or "item"
+                )
+            except ValueError:
+                label = action_item.get("item") or "item"
             quantity = action_item.get("quantity") or 1
             item_totals[label] = item_totals.get(label, 0) + int(quantity)
 

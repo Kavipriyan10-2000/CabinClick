@@ -5,12 +5,15 @@ from app.schemas.crew_operations import (
     CrewInstructionListResponse,
     CrewInstructionRecord,
     CrewMemberListResponse,
+    WorkingCrewMemberListResponse,
+    WorkingCrewMemberRecord,
     CrewQueueRequestListResponse,
     CrewQueueRequestRecord,
     CrewMemberRole,
     CrewMemberSummary,
 )
 from app.schemas.language import LanguageCode
+from app.schemas.request_catalog import request_label_for
 from app.db.supabase import get_supabase_client
 from app.services._flight_context import get_active_flight
 from app.services.instruction_batcher import emit_crew_instruction_if_needed
@@ -117,6 +120,47 @@ def list_crew_members() -> CrewMemberListResponse:
         flight_number=flight["flight_number"],
         members=members,
         message="Crew roster loaded from Supabase.",
+    )
+
+
+def list_working_crew_members() -> WorkingCrewMemberListResponse:
+    flight = get_active_flight()
+    response = (
+        get_supabase_client()
+        .table("crew_access_sessions")
+        .select("id, created_at, device_id, crew_members(*)")
+        .eq("flight_id", flight["id"])
+        .eq("status", "active")
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    seen_member_codes: set[str] = set()
+    members: list[WorkingCrewMemberRecord] = []
+    for record in response.data or []:
+        crew_member = record.get("crew_members") or {}
+        crew_member_code = crew_member.get("crew_member_code")
+        if not crew_member_code or crew_member_code in seen_member_codes:
+            continue
+        seen_member_codes.add(crew_member_code)
+        members.append(
+            WorkingCrewMemberRecord(
+                access_id=record["id"],
+                access_created_at=record["created_at"],
+                crew_member_id=crew_member_code,
+                full_name=crew_member["full_name"],
+                role=crew_member["role"],
+                device_id=record.get("device_id") or crew_member.get("device_id"),
+                assigned_zone=crew_member.get("assigned_zone"),
+                preferred_language=crew_member.get("preferred_language") or LanguageCode.en,
+            )
+        )
+
+    return WorkingCrewMemberListResponse(
+        flight_id=flight["id"],
+        flight_number=flight["flight_number"],
+        members=members,
+        message="Working crew members loaded from active crew access sessions.",
     )
 
 
@@ -257,6 +301,7 @@ def list_queued_passenger_requests(
                 flight_id=record["flight_id"],
                 seat_number=record["seat_number"],
                 category=record["category"],
+                category_label=_request_label(record["category"]),
                 request_text=record["request_text"],
                 display_text=display_text,
                 language=language or LanguageCode.en,
@@ -293,3 +338,10 @@ def _get_crew_member_language(
     if not records:
         return LanguageCode.en.value
     return records[0].get("preferred_language") or LanguageCode.en.value
+
+
+def _request_label(category: str) -> str:
+    try:
+        return request_label_for(category)
+    except ValueError:
+        return str(category)
